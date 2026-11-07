@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Brow Guessr</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌍</text></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&display=swap">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="game is-paused">
+  <header class="topbar">
+    <span id="round">Round 1 / 5</span>
+    <span id="score">0 points</span>
+    <span id="status" class="status"></span>
+  </header>
+
+  <section id="look" class="screen">
+    <div id="pano"></div>
+    <div id="pano-missing" class="pano-missing" hidden>
+      <h2>Street View needs a Google Maps key</h2>
+      <p>Put <code>GOOGLE_MAPS_API_KEY=…</code> in <code>.env</code> and restart the server.<br>The rest of the game still works.</p>
+    </div>
+    <div class="hint">Turn your head to look around · <b>Raise eyebrows</b> to guess on the map 🗺️</div>
+  </section>
+
+  <section id="guess" class="screen" hidden>
+    <div id="map"></div>
+    <div class="map-buttons">
+      <button id="zoom-in" class="big round" aria-label="Zoom in">＋</button>
+      <button id="zoom-out" class="big round" aria-label="Zoom out">－</button>
+    </div>
+    <div class="action-row">
+      <button id="look-again" class="big">👀 Look again</button>
+      <button id="submit-guess" class="big primary" disabled>📍 Guess!</button>
+    </div>
+    <div class="hint small">Raise once = drop pin / press · Raise twice = grab &amp; move the map</div>
+  </section>
+
+  <section id="result" class="card-screen" hidden>
+    <div class="card">
+      <div id="stars" class="stars"></div>
+      <h1 id="result-title"></h1>
+      <p id="result-detail"></p>
+      <button id="next" class="big primary">Next ▶</button>
+    </div>
+  </section>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script type="module" src="game.js"></script>
+</body>
+</html>
