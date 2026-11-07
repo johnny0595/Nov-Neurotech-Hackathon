@@ -1,6 +1,7 @@
 // Head + eyebrow input shared by the game and the calibration page.
 // Live: head angles and eyebrow events stream from the Python server over /ws.
 // Mock (?mock=1): mouse position stands in for head tilt, C = eyebrow click, D = double raise.
+// Like the server (without --double), mock is single-raise-only; add &double=1 to make D drag the map.
 
 const DEFAULTS = { xAxis: "roll", yAxis: "pitch", invertX: false, invertY: false, deadzone: 3, speed: 60, maxSpeed: 1100, lookSpeed: 7 };
 
@@ -29,7 +30,8 @@ export function deadzone(value, dz) {
 export function connect({ onState = () => {}, onEvent = () => {}, onMessage = () => {} } = {}) {
   const api = { connected: false, send() {} };
   if (mock) {
-    const fake = { roll: 0, pitch: 0, yaw: 0, status: "mock (mouse + C/D keys)", envelope: 0, threshold: null, rate_hz: 0 };
+    const double_enabled = new URLSearchParams(location.search).has("double");
+    const fake = { roll: 0, pitch: 0, yaw: 0, status: `mock (mouse + C${double_enabled ? "/D" : ""} keys)`, envelope: 0, threshold: null, rate_hz: 0, double_enabled };
     addEventListener("mousemove", (e) => {
       fake.roll = ((e.clientX - innerWidth / 2) / (innerWidth / 2)) * 20;
       fake.pitch = ((e.clientY - innerHeight / 2) / (innerHeight / 2)) * 20;
@@ -38,7 +40,7 @@ export function connect({ onState = () => {}, onEvent = () => {}, onMessage = ()
     addEventListener("keydown", (e) => {
       if (e.target.closest?.("input, select, textarea")) return;
       if (e.key === "c") onEvent({ type: "click" });
-      if (e.key === "d") onEvent({ type: "drag_toggle" });
+      if (e.key === "d" && double_enabled) onEvent({ type: "drag_toggle" });
     });
     setInterval(() => onState({ ...fake }), 1000 / 60);
     api.connected = true;
@@ -101,6 +103,7 @@ export function createCursor({ api, onClick = () => {}, onDrag = () => {}, onPau
 
   const c = { x: innerWidth / 2, y: innerHeight / 2, vx: 0, vy: 0, paused: true, dragging: false, visible: true, head: {} };
   let hovered = null;
+  let dragEnabled = true; // false when the server runs single-raise-only (no --double)
   let dwellStart = null;
   let last = performance.now();
 
@@ -124,6 +127,7 @@ export function createCursor({ api, onClick = () => {}, onDrag = () => {}, onPau
 
   function handleEvent(e) {
     if (e.type !== "click" && e.type !== "drag_toggle") return;
+    if (e.type === "drag_toggle" && !dragEnabled) return;
     beep(e.type === "click" ? 660 : 880);
     if (c.paused) return setPaused(false);
     flash(e.type);
@@ -182,5 +186,7 @@ export function createCursor({ api, onClick = () => {}, onDrag = () => {}, onPau
     pause() { setPaused(true); },
     get paused() { return c.paused; },
     get dragging() { return c.dragging; },
+    stopDrag() { c.dragging = false; },
+    setDragEnabled(v) { dragEnabled = v; if (!v) c.dragging = false; },
   };
 }

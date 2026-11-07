@@ -3,6 +3,8 @@
 bandpass -> RMS envelope -> per-user threshold (neutral median + k * MAD)
 -> a raise is a burst above threshold lasting min_s..max_s
 -> one raise = "click", two raises within double_window_s = "drag_toggle".
+With double_enabled=False every valid raise is a "click" the moment it ends (no double_window_s wait)
+and "drag_toggle" is never emitted.
 Time is counted in samples, so replaying a recording is deterministic.
 """
 
@@ -27,6 +29,7 @@ class DetectorParams:
     max_s: float = 1.5
     double_window_s: float = 0.8  # second raise must end within this long after the first
     debounce_s: float = 0.1
+    double_enabled: bool = True  # False: single raises only, clicks fire immediately
 
 
 class EyebrowDetector:
@@ -90,7 +93,10 @@ class EyebrowDetector:
                     self._last_end = self.n
                     if self.p.min_s <= duration <= self.p.max_s:
                         events.append({"type": "raise", "sample": self.n, "duration_s": round(duration, 3)})
-                        self._pending.append(self.n)
+                        if self.p.double_enabled:
+                            self._pending.append(self.n)
+                        else:
+                            events.append({"type": "click", "sample": self.n})
                 else:
                     self._burst_peak = max(self._burst_peak, env)
             if len(self._pending) >= 2:

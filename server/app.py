@@ -2,6 +2,7 @@
 
 uv run python -m server.app                        # live board
 uv run python -m server.app --replay data/sessions/<dir>   # replay a recording
+uv run python -m server.app --double               # also allow double raises (map drag)
 Without the board, open http://localhost:8000/?mock=1 (mouse + keys stand in).
 """
 
@@ -21,7 +22,7 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
 
 from .board import Board
-from .eyebrow import EyebrowDetector
+from .eyebrow import DetectorParams, EyebrowDetector
 from .orientation import OrientationEstimator
 from .recording import Recorder
 from .rows import EXG_ROWS, SAMPLING_RATE_HZ
@@ -56,11 +57,11 @@ class ReplaySource:
 
 
 class Hub:
-    def __init__(self, source, channel: int) -> None:
+    def __init__(self, source, channel: int, double_enabled: bool = False) -> None:
         self.source = source
         self.channel = channel
         self.orientation = OrientationEstimator()
-        self.detector = EyebrowDetector()
+        self.detector = EyebrowDetector(DetectorParams(double_enabled=double_enabled))
         self.recorder = Recorder()
         self.clients: set[WebSocket] = set()
         self.status = "connecting"
@@ -115,6 +116,7 @@ class Hub:
             "envelope": round(self.detector.envelope, 2),
             "threshold": self.detector.threshold,
             "k": self.detector.p.k,
+            "double_enabled": self.detector.p.double_enabled,
             "rate_hz": round(self.rate_hz, 1),
             "recording": self.recorder.active,
             "status": self.status,
@@ -197,10 +199,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--channel", type=int, default=2, help="forehead EXG channel (1-8)")
     parser.add_argument("--replay", type=Path, help="replay a recorded session instead of the board")
     parser.add_argument("--http-port", type=int, default=8000)
+    parser.add_argument("--double", action="store_true",
+                        help="enable double raises (drag the map); default is single raises only, clicks fire immediately")
     args = parser.parse_args(argv)
     load_dotenv()
     source = ReplaySource(args.replay) if args.replay else Board(args.port, args.channel)
-    uvicorn.run(create_app(Hub(source, args.channel)), host="127.0.0.1", port=args.http_port, log_level="warning")
+    uvicorn.run(create_app(Hub(source, args.channel, double_enabled=args.double)), host="127.0.0.1", port=args.http_port, log_level="warning")
     return 0
 
 

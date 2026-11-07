@@ -1,6 +1,6 @@
 import numpy as np
 
-from server.eyebrow import EyebrowDetector
+from server.eyebrow import DetectorParams, EyebrowDetector
 
 FS = 125
 
@@ -15,8 +15,8 @@ def emg(seconds, bursts=(), rng=np.random.default_rng(0)):
     return x
 
 
-def calibrated():
-    det = EyebrowDetector()
+def calibrated(**params):
+    det = EyebrowDetector(DetectorParams(**params))
     det.feed(emg(2))
     det.start_calibration()
     det.feed(emg(5))
@@ -49,3 +49,23 @@ def test_quiet_and_slow_blink_bumps_give_nothing():
 
 def test_uncalibrated_detector_never_fires():
     assert EyebrowDetector().feed(emg(4, [(1.0, 0.4)])) == []
+
+
+def test_single_only_click_fires_as_soon_as_the_raise_ends():
+    det = calibrated(double_enabled=False)
+    start = det.n
+    events = det.feed(emg(4, [(1.0, 0.4)]))
+    raise_, click = [e for e in events if e["type"] in ("raise", "click")]
+    assert click["sample"] == raise_["sample"]  # no double_window_s wait
+    assert click["sample"] - start < (1.0 + 0.4 + 0.2) * FS  # within 0.2 s of the burst ending
+    assert types(events) == ["click"]
+
+
+def test_single_only_never_emits_drag_toggle():
+    det = calibrated(double_enabled=False)
+    events = det.feed(emg(8, [(1.0, 0.3), (1.5, 0.3), (4.0, 0.3), (4.5, 0.3)]))
+    assert "drag_toggle" not in types(events)
+
+
+def test_single_only_two_quick_raises_are_two_clicks():
+    assert types(calibrated(double_enabled=False).feed(emg(4, [(1.0, 0.3), (1.5, 0.3)]))) == ["click", "click"]

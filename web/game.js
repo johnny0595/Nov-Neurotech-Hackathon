@@ -6,7 +6,7 @@ const $ = (id) => document.getElementById(id);
 const region = currentRegion();
 const params = new URLSearchParams(location.search);
 
-const game = { mode: "look", round: 0, total: 0, answer: null, guess: null, pov: { heading: 0, pitch: 0 }, used: new Set() };
+const game = { mode: "look", round: 0, total: 0, answer: null, guess: null, pov: { heading: 0, pitch: 0 }, used: new Set(), doubleEnabled: true };
 let pano = null;
 let svService = null;
 let guessMarker = null;
@@ -18,11 +18,16 @@ const api = connect({
   onState(state) {
     head = state;
     cursor.setHead(state);
+    if ("double_enabled" in state && state.double_enabled !== game.doubleEnabled) setDoubleEnabled(state.double_enabled);
     $("status").textContent = state.status === "live" ? "" : state.status ?? "";
   },
   onEvent(e) {
     // In LOOK mode the head steers the camera, so a single raise just means "go to the map".
-    if (game.mode === "look" && !cursor.paused && e.type === "click") return showGuess();
+    // There is nothing to drag there, so a double raise is ignored (it used to leave dragging = true).
+    if (game.mode === "look" && !cursor.paused) {
+      if (e.type === "click") return showGuess();
+      if (e.type === "drag_toggle") return;
+    }
     cursor.handleEvent(e);
   },
 });
@@ -60,7 +65,16 @@ function placePin(latlng) {
 }
 
 // ---------- screens ----------
+function setDoubleEnabled(enabled) {
+  game.doubleEnabled = enabled;
+  cursor.setDragEnabled(enabled);
+  $("guess-hint").innerHTML = enabled
+    ? "Raise once = drop pin / press · Raise twice = grab &amp; move the map"
+    : "Raise eyebrows = drop pin / press a button";
+}
+
 function show(mode) {
+  if (mode !== game.mode) cursor.stopDrag(); // never carry a map grab into another screen
   game.mode = mode;
   $("look").hidden = mode !== "look";
   $("guess").hidden = mode === "look";
