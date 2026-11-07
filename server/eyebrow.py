@@ -5,6 +5,8 @@ bandpass -> RMS envelope -> per-user threshold (neutral median + k * MAD)
 -> one raise = "click", two raises within double_window_s = "drag_toggle".
 With double_enabled=False every valid raise is a "click" the moment it ends (no double_window_s wait)
 and "drag_toggle" is never emitted.
+An optional per-sample "blocked" mask (see gyrogate.py) drops any raise whose burst overlaps it;
+those come out as "gated_raise" instead, so they never become clicks.
 Time is counted in samples, so replaying a recording is deterministic.
 """
 
@@ -45,6 +47,7 @@ class EyebrowDetector:
         self._calib: list[float] | None = None
         self._burst_start: int | None = None
         self._burst_peak = 0.0
+        self._burst_blocked = False
         self._last_end = -(10**9)
         self._pending: list[int] = []
 
@@ -67,15 +70,20 @@ class EyebrowDetector:
         self.baseline = (median, float(np.median(np.abs(values - median))) * 1.4826)
         return self.threshold
 
-    def feed(self, values: np.ndarray) -> list[dict]:
-        """Feed new samples; returns events: raise / click / drag_toggle with their sample index."""
+    def feed(self, values: np.ndarray, blocked: np.ndarray | None = None) -> list[dict]:
+        """Feed new samples; returns events: raise / click / drag_toggle / gated_raise with their sample index.
+
+        blocked: optional bool per sample; a raise whose burst touches a blocked sample is dropped.
+        """
         if len(values) == 0:
             return []
+        if blocked is None:
+            blocked = np.zeros(len(values), dtype=bool)
         filtered, self.zi = signal.sosfilt(self.sos, np.asarray(values, dtype=float), zi=self.zi)
         events: list[dict] = []
         thr = self.threshold
         fs = self.p.fs
-        for v in filtered:
+        for v, gated in zip(filtered, blocked):
             self.n += 1
             self.env2 += self.alpha * (v * v - self.env2)
             env = sqrt(self.env2)
@@ -87,11 +95,15 @@ class EyebrowDetector:
                     if env > thr and self.n - self._last_end > self.p.debounce_s * fs:
                         self._burst_start = self.n
                         self._burst_peak = env
+                        self._burst_blocked = bool(gated)
                 elif env < max(self.p.release * thr, self.p.release_of_peak * self._burst_peak):
                     duration = (self.n - self._burst_start) / fs
                     self._burst_start = None
                     self._last_end = self.n
-                    if self.p.min_s <= duration <= self.p.max_s:
+                    if self._burst_blocked or gated:
+                        if self.p.min_s <= duration <= self.p.max_s:
+                            events.append({"type": "gated_raise", "sample": self.n, "duration_s": round(duration, 3)})
+                    elif self.p.min_s <= duration <= self.p.max_s:
                         events.append({"type": "raise", "sample": self.n, "duration_s": round(duration, 3)})
                         if self.p.double_enabled:
                             self._pending.append(self.n)
@@ -99,6 +111,7 @@ class EyebrowDetector:
                             events.append({"type": "click", "sample": self.n})
                 else:
                     self._burst_peak = max(self._burst_peak, env)
+                    self._burst_blocked |= bool(gated)
             if len(self._pending) >= 2:
                 events.append({"type": "drag_toggle", "sample": self.n})
                 self._pending.clear()

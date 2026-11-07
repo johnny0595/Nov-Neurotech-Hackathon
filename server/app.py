@@ -3,6 +3,7 @@
 uv run python -m server.app                        # live board
 uv run python -m server.app --replay data/sessions/<dir>   # replay a recording
 uv run python -m server.app --double               # also allow double raises (map drag)
+uv run python -m server.app --gyro-gate 80         # head-motion gate threshold in deg/s (0 = off)
 Without the board, open http://localhost:8000/?mock=1 (mouse + keys stand in).
 """
 
@@ -23,9 +24,10 @@ from fastapi.staticfiles import StaticFiles
 
 from .board import Board
 from .eyebrow import DetectorParams, EyebrowDetector
-from .orientation import OrientationEstimator
+from .gyrogate import DEFAULT_GATE_DPS, GyroGate
+from .orientation import ImuConfig, OrientationEstimator
 from .recording import Recorder
-from .rows import EXG_ROWS, SAMPLING_RATE_HZ
+from .rows import EXG_ROWS, GYRO_ROWS, SAMPLING_RATE_HZ
 
 ROOT = Path(__file__).resolve().parent.parent
 PROFILE_PATH = ROOT / "data" / "profile.json"
@@ -57,11 +59,13 @@ class ReplaySource:
 
 
 class Hub:
-    def __init__(self, source, channel: int, double_enabled: bool = False) -> None:
+    def __init__(self, source, channel: int, double_enabled: bool = False,
+                 gyro_gate: float | None = DEFAULT_GATE_DPS, gyro_units: str = "auto") -> None:
         self.source = source
         self.channel = channel
-        self.orientation = OrientationEstimator()
+        self.orientation = OrientationEstimator(ImuConfig(gyro_units=gyro_units))
         self.detector = EyebrowDetector(DetectorParams(double_enabled=double_enabled))
+        self.gate = GyroGate(gyro_gate, fs=SAMPLING_RATE_HZ, units=gyro_units)
         self.recorder = Recorder()
         self.clients: set[WebSocket] = set()
         self.status = "connecting"
@@ -100,7 +104,8 @@ class Hub:
             o = self.orientation.update(column)
         self.last_angles = {"roll": o.roll, "pitch": o.pitch, "yaw": o.yaw}
         self.recorder.append(batch)
-        events = self.detector.feed(batch[EXG_ROWS[self.channel - 1]])
+        blocked = self.gate.mask(batch[list(GYRO_ROWS)])
+        events = self.detector.feed(batch[EXG_ROWS[self.channel - 1]], blocked)
         for event in events:
             self.recorder.detected(event)
         now = time.monotonic()
@@ -117,6 +122,8 @@ class Hub:
             "threshold": self.detector.threshold,
             "k": self.detector.p.k,
             "double_enabled": self.detector.p.double_enabled,
+            "gyro_dps": round(self.gate.dps, 1),
+            "gyro_gate": self.gate.threshold,
             "rate_hz": round(self.rate_hz, 1),
             "recording": self.recorder.active,
             "status": self.status,
@@ -151,7 +158,8 @@ class Hub:
             self.recorder.mark(str(msg["label"]), str(msg["edge"]))
         elif cmd == "record_stop":
             info = getattr(self.source, "info", {})
-            path = self.recorder.stop({"source": info, "detector": self.detector.state(), "aborted": bool(msg.get("aborted"))})
+            gate = {"threshold_dps": self.gate.threshold, "hold_samples": self.gate.hold, "units": self.gate.units_label}
+            path = self.recorder.stop({"source": info, "detector": self.detector.state(), "gyro_gate": gate, "aborted": bool(msg.get("aborted"))})
             await ws.send_text(json.dumps({"t": "saved", "path": str(path.relative_to(ROOT)) if path else None}))
 
 
@@ -201,10 +209,14 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--http-port", type=int, default=8000)
     parser.add_argument("--double", action="store_true",
                         help="enable double raises (drag the map); default is single raises only, clicks fire immediately")
+    parser.add_argument("--gyro-gate", type=float, default=DEFAULT_GATE_DPS, metavar="DEG_S",
+                        help=f"ignore raises while the head turns faster than this, and 150 ms after (default {DEFAULT_GATE_DPS:g}; 0 = off)")
+    parser.add_argument("--gyro-units", choices=["auto", "deg_s", "rad_s"], default="auto",
+                        help="units of the board's gyro rows, for the gate and head tracking (default: auto-detect)")
     args = parser.parse_args(argv)
     load_dotenv()
     source = ReplaySource(args.replay) if args.replay else Board(args.port, args.channel)
-    uvicorn.run(create_app(Hub(source, args.channel, double_enabled=args.double)), host="127.0.0.1", port=args.http_port, log_level="warning")
+    uvicorn.run(create_app(Hub(source, args.channel, double_enabled=args.double, gyro_gate=args.gyro_gate, gyro_units=args.gyro_units)), host="127.0.0.1", port=args.http_port, log_level="warning")
     return 0
 
 

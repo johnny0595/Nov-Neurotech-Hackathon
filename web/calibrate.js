@@ -27,10 +27,11 @@ const api = connect({
     }
   },
   onEvent(e) {
-    if (e.type !== "raise") beep(e.type === "click" ? 660 : 880);
+    if (e.type === "click" || e.type === "drag_toggle") beep(e.type === "click" ? 660 : 880);
     const li = document.createElement("li");
     li.className = e.type;
-    li.textContent = `${new Date().toLocaleTimeString()} — ${e.type}${e.duration_s ? ` (${e.duration_s}s)` : ""}`;
+    const note = e.type === "gated_raise" ? " — ignored, head was moving" : "";
+    li.textContent = `${new Date().toLocaleTimeString()} — ${e.type}${e.duration_s ? ` (${e.duration_s}s)` : ""}${note}`;
     $("log").prepend(li);
   },
   onMessage(m) {
