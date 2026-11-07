@@ -1,8 +1,10 @@
 import { connect, createCursor, deadzone, headXY, settings } from "./input.js";
-import { LOCATIONS } from "./locations.js";
+import { currentRegion } from "./regions.js";
 
 const ROUNDS = 5;
 const $ = (id) => document.getElementById(id);
+const region = currentRegion();
+const params = new URLSearchParams(location.search);
 
 const game = { mode: "look", round: 0, total: 0, answer: null, guess: null, pov: { heading: 0, pitch: 0 }, used: new Set() };
 let pano = null;
@@ -37,7 +39,13 @@ const cursor = createCursor({
 });
 
 // ---------- guess map (Leaflet + OpenStreetMap, free) ----------
-const map = L.map("map", { worldCopyJump: true, zoomControl: false }).setView([20, 0], 2);
+const map = L.map("map", { zoomControl: false, ...region.mapOptions }).setView(region.view.center, region.view.zoom);
+// The result view needs room for padding around the guess line, which maxBounds/minZoom would fight,
+// so the bounds are lifted while the result card is up and restored for the next round.
+function lockMap(locked) {
+  map.setMinZoom(locked ? region.mapOptions.minZoom ?? 0 : 0);
+  map.setMaxBounds(locked ? region.mapOptions.maxBounds ?? null : null);
+}
 L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
   maxZoom: 18,
   attribution: "&copy; OpenStreetMap contributors",
@@ -71,21 +79,23 @@ $("zoom-in").onclick = () => map.zoomIn();
 $("zoom-out").onclick = () => map.zoomOut();
 $("submit-guess").onclick = () => {
   if (!game.guess) return;
-  const km = map.distance(game.guess, game.answer) / 1000;
-  const points = Math.round(5000 * Math.exp(-km / 2000));
+  const meters = map.distance(game.guess, game.answer);
+  const { points, stars } = region.score(meters);
   game.total += points;
-  const stars = km < 500 ? 5 : km < 1500 ? 4 : km < 3000 ? 3 : km < 6000 ? 2 : 1;
   const cheer = ["Good try!", "Nice!", "Great job!", "Awesome!", "WOW, amazing!"][stars - 1];
 
   resultLayer = L.layerGroup([
     L.circleMarker(game.answer, { radius: 12, color: "#1b1f3b", fillColor: "#2ec4b6", fillOpacity: 1 }),
     L.polyline([game.guess, game.answer], { color: "#ff6b6b", weight: 5, dashArray: "10 8" }),
   ]).addTo(map);
-  map.fitBounds(L.latLngBounds([game.guess, game.answer]), { paddingTopLeft: [80, 100], paddingBottomRight: [80, 460] }); // keep the line clear of the result card
+  lockMap(false);
+  map.fitBounds(L.latLngBounds([game.guess, game.answer]), {
+    paddingTopLeft: [80, 100], paddingBottomRight: [80, 460], maxZoom: region.resultMaxZoom, // keep the line clear of the result card
+  });
 
   $("stars").textContent = "⭐".repeat(stars) + "☆".repeat(5 - stars);
   $("result-title").textContent = cheer;
-  $("result-detail").innerHTML = `It was <b>${game.answer.name}</b>.<br>You were ${Math.round(km).toLocaleString()} km away · +${points.toLocaleString()} points`;
+  $("result-detail").innerHTML = `It was <b>${game.answer.name}</b>.<br>You were ${region.formatDistance(meters)} away · +${points.toLocaleString()} points`;
   $("next").textContent = game.round >= ROUNDS ? "See my score ▶" : "Next ▶";
   $("score").textContent = `${game.total.toLocaleString()} points`;
   show("result");
@@ -94,7 +104,7 @@ $("next").onclick = () => {
   if (game.round >= ROUNDS) {
     $("stars").textContent = "🏆";
     $("result-title").textContent = `${game.total.toLocaleString()} points!`;
-    $("result-detail").textContent = "You explored the whole world. Play again?";
+    $("result-detail").textContent = region.finale;
     $("next").textContent = "Play again ▶";
     game.round = 0;
     game.total = 0;
@@ -106,19 +116,20 @@ $("next").onclick = () => {
 
 // ---------- rounds + Street View ----------
 async function pickLocation() {
+  const LOCATIONS = region.locations;
+  if (LOCATIONS.filter((l) => !game.used.has(l.name)).length < ROUNDS) game.used.clear();
   const pool = LOCATIONS.filter((l) => !game.used.has(l.name));
-  if (pool.length < 5) game.used.clear();
   while (true) {
     const loc = pool.splice(Math.floor(Math.random() * pool.length), 1)[0] ?? LOCATIONS[0];
     game.used.add(loc.name);
     if (!svService) return { ...loc, panoId: null };
     try {
       const { data } = await svService.getPanorama({
-        location: loc, radius: 1000, source: google.maps.StreetViewSource.OUTDOOR,
+        location: { lat: loc.lat, lng: loc.lng }, radius: region.snapRadius, source: google.maps.StreetViewSource.OUTDOOR,
         preference: google.maps.StreetViewPreference.NEAREST,
       });
       const p = data.location.latLng;
-      return { name: loc.name, lat: p.lat(), lng: p.lng(), panoId: data.location.pano };
+      return { ...loc, lat: p.lat(), lng: p.lng(), panoId: data.location.pano };
     } catch {
       if (!pool.length) return { ...loc, panoId: null }; // no coverage anywhere; still playable
     }
@@ -132,7 +143,8 @@ async function newRound() {
   $("submit-guess").disabled = true;
   guessMarker?.remove(); guessMarker = null;
   resultLayer?.remove(); resultLayer = null;
-  map.setView([20, 0], 2);
+  lockMap(true);
+  map.setView(region.view.center, region.view.zoom);
   game.answer = await pickLocation();
   game.answer = Object.assign(L.latLng(game.answer.lat, game.answer.lng), game.answer);
   game.pov = { heading: Math.random() * 360, pitch: 0 };
@@ -177,5 +189,9 @@ async function loadGoogleMaps() {
 
 const hasMaps = await loadGoogleMaps().catch(() => false);
 $("pano-missing").hidden = hasMaps;
+if (params.has("checklocs")) {
+  if (hasMaps) import("./checklocs.js").then((m) => m.checkLocations(region.locations, 150));
+  else console.warn("[checklocs] needs GOOGLE_MAPS_API_KEY in .env");
+}
 requestAnimationFrame(steer);
 await newRound();
