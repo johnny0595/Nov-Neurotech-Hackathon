@@ -14,6 +14,7 @@ import argparse
 import asyncio
 import json
 import os
+import re
 import time
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -33,7 +34,8 @@ from .recording import Recorder
 from .rows import EXG_ROWS, GYRO_ROWS, SAMPLING_RATE_HZ
 
 ROOT = Path(__file__).resolve().parent.parent
-PROFILE_PATH = ROOT / "data" / "profile.json"
+PROFILE_PATH = ROOT / "data" / "profile.json"  # before player profiles: one shared file (still read once)
+PROFILES_DIR = ROOT / "data" / "profiles"  # one file per player profile: detector calibration + input
 SEND_HZ = 60
 STALL_SECONDS = 3.0  # no samples for this long = the board stopped (usually stuck at "Scanning for IMU...")
 RECONNECT_EVERY_S = 5.0
@@ -79,6 +81,7 @@ class Hub:
             for name in self.channels
         }
         self.input_mode = "brow" if "brow" in self.detectors else next(iter(self.detectors))
+        self.profile_name: str | None = None  # set by the page ({"cmd": "profile"}); None = the old shared file
         self.merger = EventMerger(SAMPLING_RATE_HZ)
         if PARAMS_PATH.exists():
             print(f"eyebrow detector: using tuned settings from {PARAMS_PATH.name}")
@@ -130,13 +133,42 @@ class Hub:
         if profile.get("input") in INPUT_MODES:
             self.input_mode = profile["input"]
 
+    @staticmethod
+    def profile_path(name: str) -> Path:
+        slug = re.sub(r"[^A-Za-z0-9_-]+", "-", name.strip()).strip("-").lower() or "player"
+        return PROFILES_DIR / f"{slug}.json"
+
+    def _current_path(self) -> Path:
+        return self.profile_path(self.profile_name) if self.profile_name else PROFILE_PATH
+
     def _load_profile(self) -> None:
         if PROFILE_PATH.exists():
             self._apply_profile(json.loads(PROFILE_PATH.read_text()), PROFILE_PATH.stat().st_mtime)
 
     def _save_profile(self) -> None:
-        PROFILE_PATH.parent.mkdir(parents=True, exist_ok=True)
-        PROFILE_PATH.write_text(json.dumps(self._profile_data(), indent=2))
+        path = self._current_path()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps({"name": self.profile_name, **self._profile_data()}, indent=2))
+
+    def switch_profile(self, name: str) -> None:
+        """Load a player's detector calibration and input. A profile without a file yet keeps whatever is
+        loaded now (so clicks keep working) and gets its own file from its first calibration on."""
+        self.profile_name = name.strip() or "Player 1"
+        path = self._current_path()
+        if path.exists():
+            self._apply_profile(json.loads(path.read_text()), path.stat().st_mtime)
+
+    def rename_profile(self, old: str, new: str) -> None:
+        src, dst = self.profile_path(old), self.profile_path(new)
+        if src.exists() and not dst.exists():
+            data = json.loads(src.read_text())
+            dst.write_text(json.dumps({**data, "name": new.strip()}, indent=2))
+            src.unlink()
+        if self.profile_name == old:
+            self.profile_name = new.strip()
+
+    def delete_profile(self, name: str) -> None:
+        self.profile_path(name).unlink(missing_ok=True)
 
     async def run(self) -> None:
         try:
@@ -221,6 +253,7 @@ class Hub:
             "threshold": self.detector.threshold,
             "k": self.detector.p.k,
             "input": self.input_mode,
+            "profile": self.profile_name,
             "detectors": {
                 name: {"channel": self.channels[name], "envelope": round(d.envelope, 2), "threshold": d.threshold, "k": d.p.k}
                 for name, d in self.detectors.items()
@@ -275,6 +308,12 @@ class Hub:
             self.head_axes = HeadAxes(gyro_bias=self.orientation.gyro_bias.copy())
             self.tracker.nod = None
             AXES_PATH.unlink(missing_ok=True)
+        elif cmd == "profile":
+            self.switch_profile(str(msg.get("name", "")))
+        elif cmd == "profile_rename":
+            self.rename_profile(str(msg.get("old", "")), str(msg.get("new", "")))
+        elif cmd == "profile_delete":
+            self.delete_profile(str(msg.get("name", "")))
         elif cmd == "set_input":
             if msg.get("input") in INPUT_MODES:
                 self.input_mode = msg["input"]

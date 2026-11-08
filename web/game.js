@@ -1,4 +1,5 @@
 import { beep, connect, createCursor, deadzone, headXY, saveSettings, settings } from "./input.js";
+import { profiles } from "./settings.js";
 import { createMeter } from "./meter.js";
 import { currentRegion, panoRequest } from "./regions.js";
 import { speak } from "./speech.js";
@@ -229,6 +230,8 @@ function refreshText() {
   if (!armed) resetSubmitButton();
   $("round").textContent = t("top.round", { n: Math.max(1, game.round), total: ROUNDS });
   $("speech").textContent = t("start.speech", { state: t(settings.speechOn ? "on" : "off") });
+  $("profile").textContent = t("start.profile", { name: profiles.current() });
+  $("profile").hidden = profiles.list().length < 2; // only worth a button when there's someone to switch to
   $("speech").setAttribute("aria-pressed", String(Boolean(settings.speechOn)));
   $("score").textContent = t("top.points", { points: game.total.toLocaleString() });
 }
@@ -271,6 +274,11 @@ async function startGame() {
 }
 
 $("play").onclick = startGame;
+$("profile").onclick = () => {
+  profiles.switchTo(profiles.next()); // re-renders everything via settings-changed
+  speak(t("say.profile", { name: profiles.current() }));
+};
+addEventListener("profile-changed", refreshText);
 $("speech").onclick = () => {
   settings.speechOn = !settings.speechOn;
   saveSettings();

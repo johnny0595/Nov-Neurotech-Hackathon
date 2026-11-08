@@ -1,6 +1,6 @@
 // Head + eyebrow input shared by the game and the calibration page.
 import { OneEuro, gainsFromRange, lockLookbackMs, magnetize, pointTarget, positionAt } from "./pointer.js";
-import { saveSettings, settings } from "./settings.js";
+import { profiles, saveSettings, settings } from "./settings.js";
 import { t } from "./strings.js";
 import { timing } from "./timing.js";
 
@@ -53,7 +53,10 @@ export function connect({ onState: onStateRaw = () => {}, onEvent: onEventRaw = 
   const onEvent = (e) => { if (sourceAllowed(e.source)) onEventRaw(e); };
   const onState = onStateRaw;
   const sendInput = () => api.send({ cmd: "set_input", input: settings.input });
+  // the server keeps each profile's EMG calibration: tell it who's playing, then their input
+  const sendProfile = () => { api.send({ cmd: "profile", name: profiles.current() }); sendInput(); };
   addEventListener("settings-changed", sendInput);
+  addEventListener("profile-changed", sendProfile);
   if (switchKeys) {
     // a physical switch (or a keyboard) as the only input: Space / Enter = one click
     addEventListener("keydown", (e) => {
@@ -101,7 +104,7 @@ export function connect({ onState: onStateRaw = () => {}, onEvent: onEventRaw = 
   api.send = (msg) => { if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify(msg)); };
   const open = () => {
     ws = new WebSocket(`${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws`);
-    ws.onopen = () => { api.connected = true; sendInput(); };
+    ws.onopen = () => { api.connected = true; sendProfile(); };
     ws.onmessage = (m) => {
       const msg = JSON.parse(m.data);
       if (msg.t === "state") {

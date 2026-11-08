@@ -1,4 +1,5 @@
 import { beep, connect, headXY, mock, saveSettings, settings } from "./input.js";
+import { profiles } from "./settings.js";
 import { speak, voices } from "./speech.js";
 import { t } from "./strings.js";
 
@@ -69,6 +70,44 @@ const api = connect({
 const fmt = (v) => (v ?? 0).toFixed(1).padStart(6);
 let lastXY = [0, 0]; // latest head tilt (x right, y down), for the range step
 
+// ---------- player profiles ----------
+function showProfiles(status = "") {
+  const select = $("profileSelect");
+  select.replaceChildren(...profiles.list().map((n) => new Option(n, n)));
+  select.value = profiles.current();
+  $("profileName").value = profiles.current();
+  $("profileDelete").textContent = "Delete…";
+  delete $("profileDelete").dataset.armed;
+  $("profileStatus").textContent = status;
+}
+$("profileSelect").onchange = () => profiles.switchTo($("profileSelect").value);
+$("profileCreate").onclick = () => {
+  const typed = $("profileName").value;
+  const r = profiles.create(typed === profiles.current() ? `Player ${profiles.list().length + 1}` : typed);
+  showProfiles(r.error ?? `Created “${r.name}” with default settings. Calibrate below.`);
+};
+$("profileRename").onclick = () => {
+  const old = profiles.current();
+  const r = profiles.rename(old, $("profileName").value);
+  if (!r.error) api.send({ cmd: "profile_rename", old, new: r.name });
+  showProfiles(r.error ?? `Renamed to “${r.name}”.`);
+};
+$("profileDelete").onclick = () => {
+  const btn = $("profileDelete");
+  if (!btn.dataset.armed) { // two steps instead of a pop-up dialog
+    btn.dataset.armed = "1";
+    btn.textContent = `Really delete “${profiles.current()}”?`;
+    return;
+  }
+  const name = profiles.current();
+  const r = profiles.remove(name);
+  if (!r.error) api.send({ cmd: "profile_delete", name });
+  showProfiles(r.error ?? `Deleted “${name}”.`);
+};
+// switching profile: every control shows the new profile's values
+addEventListener("profile-changed", () => { syncControls(); showProfiles(`Now using “${profiles.current()}”.`); });
+showProfiles();
+
 // ---------- read-aloud voices (the list can arrive after page load) ----------
 function fillVoices() {
   const select = $("speechVoice");
@@ -84,7 +123,18 @@ globalThis.speechSynthesis?.addEventListener?.("voiceschanged", fillVoices);
 $("speechTest").onclick = () => speak(t("setup.speech.test"), { force: true });
 
 // ---------- head settings ----------
-for (const id of ["xAxis", "yAxis", "invertX", "invertY", "speed", "deadzone", "lookSpeed", "cursorMode", "oneEuroMinCutoff", "oneEuroBeta", "magnet", "tone", "speechOn", "speechVoice", "speechRate", "speechVolume", "timing", "input"]) {
+const BOUND = ["xAxis", "yAxis", "invertX", "invertY", "speed", "deadzone", "lookSpeed", "cursorMode", "oneEuroMinCutoff", "oneEuroBeta", "magnet", "tone", "speechOn", "speechVoice", "speechRate", "speechVolume", "timing", "input"];
+function syncControls() {
+  for (const id of BOUND) {
+    const el = $(id);
+    el[el.type === "checkbox" ? "checked" : "value"] = settings[id];
+    const out = $(`${id}-val`);
+    if (out) out.textContent = settings[id];
+  }
+  showRange?.();
+  showTiming?.();
+}
+for (const id of BOUND) {
   const el = $(id);
   const key = el.type === "checkbox" ? "checked" : "value";
   const out = $(`${id}-val`);

@@ -20,6 +20,19 @@
 
   <main>
     <section class="panel wide">
+      <h2>Player profile</h2>
+      <p class="muted">Each profile keeps its own calibration, cursor, input, timing, read-aloud and display settings.</p>
+      <div class="row">
+        <label>Current player <select id="profileSelect"></select></label>
+        <label>Name <input id="profileName" autocomplete="off" maxlength="30"></label>
+        <button id="profileCreate" type="button">New profile</button>
+        <button id="profileRename" type="button">Rename</button>
+        <button id="profileDelete" type="button">Delete…</button>
+      </div>
+      <p id="profileStatus" class="muted" role="status" aria-live="polite"></p>
+    </section>
+
+    <section class="panel wide">
       <h2>Preferences</h2>
       <div class="row">
         <label>Tone of the game's text <select id="tone"><option value="plain">Plain (for everyone)</option><option value="playful">Playful (for children)</option></select></label>

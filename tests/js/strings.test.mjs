@@ -27,7 +27,7 @@ test("both tones fill every placeholder", () => {
   for (const tone of ["plain", "playful"]) {
     settings.tone = tone;
     for (const key of STRING_KEYS) {
-      const vars = { n: 1, total: 5, points: 10, time: "12:00", problems: "x", text: "x", s: 3, path: "p", state: "on", place: "x", distance: "1 mile", fact: "x", hint: "x" };
+      const vars = { n: 1, total: 5, points: 10, time: "12:00", problems: "x", text: "x", s: 3, path: "p", state: "on", place: "x", distance: "1 mile", fact: "x", hint: "x", name: "Ana" };
       const out = [].concat(t(key, vars));
       for (const s of out) assert.ok(!/\{\w+\}/.test(s), `${tone} ${key}: ${s}`);
     }
