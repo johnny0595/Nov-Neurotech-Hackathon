@@ -48,7 +48,7 @@ export const LOCATIONS = [
   { name: "Talley Student Union", lat: 35.7840, lng: -78.6709,
     hint: "Where NC State students eat and hang out 🍔",
     fact: "Talley is like NC State's living room: students eat, study and relax here." },
-  { name: "NC State Fairgrounds", lat: 35.7940, lng: -78.7104,
+  { name: "NC State Fairgrounds", lat: 35.7950, lng: -78.7074, // on the "J.S. Dorton Arena" pano; arena centre had none within 150 m
     hint: "Rides and fried food every October 🎡",
     fact: "Dorton Arena at the fairgrounds was built in 1952 and its roof looks like a giant potato chip!" },
   { name: "JC Raulston Arboretum", lat: 35.7945, lng: -78.6990,
