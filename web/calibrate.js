@@ -124,7 +124,7 @@ globalThis.speechSynthesis?.addEventListener?.("voiceschanged", fillVoices);
 $("speechTest").onclick = () => speak(t("setup.speech.test"), { force: true });
 
 // ---------- head settings ----------
-const BOUND = ["xAxis", "yAxis", "invertX", "invertY", "speed", "deadzone", "lookSpeed", "cursorMode", "oneEuroMinCutoff", "oneEuroBeta", "magnet", "tone", "speechOn", "speechVoice", "speechRate", "speechVolume", "timing", "input", "assist", "theme", "textScale", "cursorSize"];
+const BOUND = ["xAxis", "yAxis", "invertX", "invertY", "speed", "deadzone", "lookSpeed", "cursorMode", "oneEuroMinCutoff", "oneEuroBeta", "magnet", "tone", "speechOn", "speechVoice", "speechRate", "speechVolume", "timing", "input", "assist", "theme", "textScale", "cursorSize", "difficulty", "roundTimer"];
 function syncControls() {
   for (const id of BOUND) {
     const el = $(id);
@@ -142,7 +142,7 @@ for (const id of BOUND) {
   el[key] = settings[id];
   if (out) out.textContent = settings[id];
   el.oninput = () => {
-    settings[id] = el.type === "checkbox" ? el.checked : el.type === "range" ? Number(el.value) : el.value;
+    settings[id] = el.type === "checkbox" ? el.checked : el.type === "range" || id === "roundTimer" ? Number(el.value) : el.value;
     if (out) out.textContent = settings[id];
     saveSettings();
   };

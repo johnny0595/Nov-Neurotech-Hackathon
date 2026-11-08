@@ -39,6 +39,7 @@ const game = {
 // first click on it, so "time to click" is measured once per screen.
 const stats = { raises: 0, gated: 0, clicks: 0, clickTimes: [], rounds: 0, autoZeros: 0, shownAt: null };
 let resultSeconds = 0;
+let roundSecondsLeft = 0; // optional round timer (settings.roundTimer; 0 = off)
 let stillSince = null;
 let zeroedWhileStill = false;
 let pano = null;
@@ -408,14 +409,23 @@ $("submit-guess").onclick = () => {
   submitGuess();
 };
 
-function submitGuess() {
+// Round timer ran out: guess wherever the pin is, or (no pin) the middle of the map, for few points.
+function timeUp() {
+  if (game.mode !== "look" && game.mode !== "guess") return;
+  if (!game.guess) placePin(map.getCenter());
+  if (game.mode === "look") show("guess");
+  submitGuess({ timeUp: true });
+}
+
+function submitGuess({ timeUp: outOfTime = false } = {}) {
   if (!game.guess || game.mode !== "guess") return;
   disarm();
   const meters = map.distance(game.guess, game.answer);
   const { points, stars } = region.score(meters);
   game.total += points;
   stats.rounds += 1;
-  const cheer = t("result.cheer")[stars - 1];
+  const cheer = outOfTime ? t("result.timeUp") : t("result.cheer")[stars - 1];
+  if (outOfTime) speak(t("say.timeUp"));
 
   // guess = a pin, answer = a star: different shapes and labels, not only different colours
   const star = L.divIcon({ className: "answer-star", html: "★", iconSize: [48, 48], iconAnchor: [24, 24] });
@@ -519,6 +529,7 @@ async function loadRound() {
   game.lookSeconds = 0;
   $("loc-hint").hidden = true;
   $("round").textContent = t("top.round", { n: game.round, total: ROUNDS });
+  roundSecondsLeft = Number(settings.roundTimer) || 0;
   $("submit-guess").disabled = true;
   guessMarker?.remove(); guessMarker = null;
   resultLayer?.remove(); resultLayer = null;
@@ -572,6 +583,15 @@ function steer(now) {
     if (resultSeconds >= autoS) $("next").click();
   }
   autoZero(now);
+  // Optional round timer (off by default): counts down while looking and guessing, not while paused.
+  const timed = (Number(settings.roundTimer) || 0) > 0 && (game.mode === "look" || game.mode === "guess");
+  $("timer").hidden = !timed;
+  if (timed && !cursor.paused && roundSecondsLeft > 0) {
+    roundSecondsLeft = Math.max(0, roundSecondsLeft - Math.min(1, elapsed));
+    const s = Math.ceil(roundSecondsLeft);
+    $("timer").textContent = `⏱ ${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+    if (roundSecondsLeft === 0) timeUp();
+  }
   if (game.mode === "look" && !cursor.paused) {
     game.lookSeconds += Math.min(1, elapsed); // real time, even when frames are slow
     if (game.answer?.hint && game.lookSeconds >= timing().hintDelayS && $("loc-hint").hidden) {
@@ -697,6 +717,6 @@ requestAnimationFrame(steer);
 const hasMaps = await mapsReady;
 $("pano-missing").hidden = hasMaps;
 if (params.has("checklocs")) {
-  if (hasMaps) import("./checklocs.js").then((m) => m.checkLocations(region.locations, 150));
+  if (hasMaps) import("./checklocs.js").then((m) => m.checkLocations(region.locations, region.snapRadius));
   else console.warn("[checklocs] needs GOOGLE_MAPS_API_KEY in .env");
 }

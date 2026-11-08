@@ -22,6 +22,10 @@ export const DEFAULTS = {
   theme: "auto", // "auto" (follows the system) | "light" | "dark" | "contrast" (black / white / yellow)
   textScale: 1, // 1 = 100% ... 2 = 200%
   cursorSize: "M", // "S" | "M" | "L"
+  // difficulty = the region (regions.js): "raleigh" (default) | "nc" | "usa" | "world"
+  difficulty: "raleigh",
+  // optional round timer in seconds; 0 = off (the default: nothing is timed unless turned on)
+  roundTimer: 0,
   // copy
   tone: "plain", // "plain" (default, for everyone) | "playful" (the original kid-style copy)
   // read-aloud (speech.js)
