@@ -128,17 +128,15 @@ function showGuess() {
   show("guess");
 }
 
-let starting = false;
 async function startGame() {
-  if (starting) return; // a second raise while the first round loads
-  starting = true;
+  if (loadingRound) return; // a second raise while the first round loads
   if (cursor.paused) cursor.resume(); // re-zeroes the head's neutral pose
   game.round = 0;
   game.total = 0;
   Object.assign(stats, { raises: 0, clicks: 0, clickTimes: [], rounds: 0, shownAt: null });
   $("score").textContent = "0 points";
   $("helper-panel").hidden = true;
-  try { await newRound(); } finally { starting = false; }
+  await newRound();
 }
 
 $("play").onclick = startGame;
@@ -212,13 +210,33 @@ async function pickLocation() {
       const { data } = await svService.getPanorama(panoRequest(loc, region.snapRadius));
       const p = data.location.latLng;
       return { ...loc, lat: p.lat(), lng: p.lng(), panoId: data.location.pano };
-    } catch {
-      if (!pool.length) return { ...loc, panoId: null }; // no coverage anywhere; still playable
+    } catch (err) {
+      // No coverage here: try another place. Anything else (quota, network) would fail for every place,
+      // so stop now instead of spending a lookup per location.
+      const noCoverage = err?.code === "ZERO_RESULTS" || /ZERO_RESULTS/.test(String(err?.message ?? err));
+      if (!noCoverage) console.warn("[street view]", err);
+      if (!noCoverage || !pool.length) return { ...loc, panoId: null }; // still playable from the hint
     }
   }
 }
 
+// Only one round loads at a time: picking a panorama takes a moment, and a second raise (or click) on
+// "Next" meanwhile used to start a second round and skip one.
+let loadingRound = false;
+const loadButtons = ["play", "next", "play-again"];
 async function newRound() {
+  if (loadingRound) return;
+  loadingRound = true;
+  for (const id of loadButtons) $(id).disabled = true;
+  try {
+    await loadRound();
+  } finally {
+    loadingRound = false;
+    for (const id of loadButtons) $(id).disabled = false;
+  }
+}
+
+async function loadRound() {
   game.round += 1;
   game.guess = null;
   game.lookSeconds = 0;
@@ -233,11 +251,17 @@ async function newRound() {
   game.answer = await pickLocation();
   game.answer = Object.assign(L.latLng(game.answer.lat, game.answer.lng), game.answer);
   game.pov = { heading: Math.random() * 360, pitch: 0 };
-  if (pano && game.answer.panoId) {
+  const hasPano = Boolean(pano && game.answer.panoId);
+  if (hasPano) {
     pano.setPano(game.answer.panoId);
     pano.setPov(game.pov);
+    pano.setZoom(1); // undo any mouse zoom from the last round
   }
+  // Never leave last round's panorama up for a different answer. Without a picture, the hint is the clue.
+  $("pano").style.visibility = hasPano ? "" : "hidden";
+  $("pano-none").hidden = !pano || hasPano;
   $("loc-hint-text").textContent = game.answer.hint ?? "";
+  if (!hasPano) game.lookSeconds = HINT_AFTER_S;
   show("look");
 }
 
@@ -268,9 +292,11 @@ function steer(now) {
     const dy = deadzone(y, settings.deadzone);
     if (pano && (dx || dy) && now > manualUntil) {
       const current = pano.getPov();
+      const pitch = current.pitch - dy * settings.lookSpeed * 0.5 * dt;
       game.pov = {
         heading: (current.heading + dx * settings.lookSpeed * dt + 360) % 360,
-        pitch: Math.max(-35, Math.min(35, current.pitch - dy * settings.lookSpeed * 0.5 * dt)),
+        // the head can't tilt past ±35°, but a mouse view beyond that isn't snapped back either
+        pitch: Math.abs(pitch) <= 35 || Math.abs(pitch) < Math.abs(current.pitch) ? pitch : current.pitch,
       };
       pano.setPov(game.pov);
     }

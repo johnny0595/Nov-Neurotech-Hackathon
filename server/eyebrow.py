@@ -79,6 +79,8 @@ class EyebrowDetector:
             return []
         if blocked is None:
             blocked = np.zeros(len(values), dtype=bool)
+        elif len(blocked) != len(values):
+            raise ValueError(f"blocked mask has {len(blocked)} samples, values has {len(values)}")
         filtered, self.zi = signal.sosfilt(self.sos, np.asarray(values, dtype=float), zi=self.zi)
         events: list[dict] = []
         thr = self.threshold

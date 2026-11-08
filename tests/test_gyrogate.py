@@ -1,6 +1,7 @@
 import json
 
 import numpy as np
+import pytest
 
 from server import evaluate, recording
 from server.eyebrow import EyebrowDetector
@@ -90,3 +91,17 @@ def test_evaluate_compares_gate_on_and_off(tmp_path, monkeypatch, capsys):
     lines = [json.loads(l) for l in capsys.readouterr().out.splitlines()]
     summary = {l["gyro_gate"]: l for l in lines if l.get("summary")}
     assert summary[0]["false_clicks_per_min"] > 0 and summary[60]["false_clicks_per_min"] == 0
+
+
+def test_mask_must_match_the_samples():
+    with pytest.raises(ValueError):
+        calibrated().feed(emg(1), np.zeros(10, dtype=bool))
+
+
+def test_nan_gyro_samples_are_ignored():
+    gate = GyroGate(60, fs=FS)
+    g = gyro(4, [(2.0, 0.5)])
+    g[:, :50] = np.nan  # garbled start must not decide the units
+    blocked = gate.mask(g)
+    assert gate.units_label == "deg_s"
+    assert blocked[int(2.2 * FS)] and not blocked[int(1.5 * FS)]

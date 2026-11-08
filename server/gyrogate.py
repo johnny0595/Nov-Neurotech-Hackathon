@@ -13,7 +13,7 @@ is not a head), otherwise decided from the first second's median (at rest a deg/
 
 from __future__ import annotations
 
-from math import degrees
+from math import degrees, isfinite
 
 import numpy as np
 
@@ -52,6 +52,10 @@ class GyroGate:
         norms = np.linalg.norm(np.asarray(gyro_xyz, dtype=float), axis=0)
         blocked = np.zeros(norms.size, dtype=bool)
         for i, norm in enumerate(norms):
+            if not isfinite(norm):  # dropped/garbled IMU sample: not "fast", and it can't decide the units
+                self._since_fast += 1
+                blocked[i] = self._since_fast <= self.hold
+                continue
             dps = self._to_dps(float(norm))
             if dps is None:
                 continue
