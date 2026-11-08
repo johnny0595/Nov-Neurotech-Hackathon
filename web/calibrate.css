@@ -46,3 +46,4 @@ body.setup { overflow: auto; font-size: 18px; }
 .range-values { width: 100%; border-collapse: collapse; margin-top: 12px; text-align: center; font-weight: 700; }
 .range-values th { color: var(--muted); font-weight: 700; }
 .range-values td { font-size: 24px; }
+.small-note { font-size: 15px; margin: -4px 0 8px; }

@@ -25,3 +25,46 @@ export function gainsFromRange(range, width, height) {
     up: per(height / 2, range.up), down: per(height / 2, range.down),
   };
 }
+
+// ---------- absolute pointing ----------
+const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+
+/** Head-mouse position: screen centre + per-direction gain x tilt (x right, y down), kept on screen. */
+export function pointTarget([tx, ty], gains, width, height) {
+  return {
+    x: clamp(width / 2 + tx * (tx < 0 ? gains.left : gains.right), 0, width - 1),
+    y: clamp(height / 2 + ty * (ty < 0 ? gains.up : gains.down), 0, height - 1),
+  };
+}
+
+// ---------- One Euro filter (Casiez et al. 2012): smooth when still, responsive when moving ----------
+const smoothing = (cutoffHz, dt) => 1 / (1 + 1 / (2 * Math.PI * cutoffHz * dt));
+
+export class OneEuro {
+  constructor({ minCutoff = 1, beta = 0.02, dCutoff = 1 } = {}) {
+    Object.assign(this, { minCutoff, beta, dCutoff });
+    this.reset();
+  }
+
+  reset() {
+    this.value = null;
+    this.speed = 0;
+    this.lastT = null;
+  }
+
+  /** value in px, t in seconds. */
+  filter(value, t) {
+    if (this.value === null) {
+      this.value = value;
+      this.lastT = t;
+      return value;
+    }
+    const dt = Math.max(1e-3, t - this.lastT);
+    this.lastT = t;
+    const rawSpeed = (value - this.value) / dt;
+    this.speed += smoothing(this.dCutoff, dt) * (rawSpeed - this.speed);
+    const cutoff = this.minCutoff + this.beta * Math.abs(this.speed);
+    this.value += smoothing(cutoff, dt) * (value - this.value);
+    return this.value;
+  }
+}

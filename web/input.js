@@ -1,5 +1,5 @@
 // Head + eyebrow input shared by the game and the calibration page.
-import { lockLookbackMs, positionAt } from "./pointer.js";
+import { OneEuro, gainsFromRange, lockLookbackMs, pointTarget, positionAt } from "./pointer.js";
 
 // Live: head angles and eyebrow events stream from the Python server over /ws.
 // Mock (?mock=1): mouse position stands in for head tilt, C = eyebrow click (a 0.3 s raise), D = double raise.
@@ -8,7 +8,13 @@ import { lockLookbackMs, positionAt } from "./pointer.js";
 const DEFAULTS = {
   xAxis: "roll", yAxis: "pitch", invertX: false, invertY: false, deadzone: 3, speed: 60, maxSpeed: 1100, lookSpeed: 7,
   range: null, // comfortable tilt per direction in degrees, from calibrate.html: { left, right, down, up }
+  // "point": cursor = centre + gain x tilt, like a head mouse (needs the range step; until then it
+  // falls back to "joystick": tilt = cursor speed, scaled by the speed slider)
+  cursorMode: "point",
+  oneEuroMinCutoff: 1.0, // Hz: lower = steadier when still
+  oneEuroBeta: 0.02, // higher = less lag when moving fast
 };
+const MOCK_RANGE = { left: 20, right: 20, down: 20, up: 20 }; // mock maps the window edges to ±20°
 
 function readStored() {
   try { return JSON.parse(localStorage.getItem("brow-settings")) || {}; } catch { return {}; }
@@ -19,6 +25,12 @@ export function saveSettings() {
 }
 
 export const mock = new URLSearchParams(location.search).has("mock");
+
+/** Cursor gains in px/degree for "point" mode, or null to use the joystick. */
+export function pointGains() {
+  if (settings.cursorMode !== "point") return null;
+  return gainsFromRange(settings.range ?? (mock ? MOCK_RANGE : null), innerWidth, innerHeight);
+}
 
 /** Head tilt in degrees as [x, y]; right and down are positive. */
 export function headXY(state) {
@@ -115,6 +127,8 @@ export function createCursor({ api, onClick = () => {}, onDrag = () => {}, onPau
   let dragEnabled = true; // false when the server runs single-raise-only (no --double)
   let dwellStart = null;
   let last = performance.now();
+  const smoothX = new OneEuro();
+  const smoothY = new OneEuro();
   // Click lock: raising the eyebrows nudges the head (and so the cursor) up, so a click is hit-tested
   // where the cursor was just before the raise began, not where it is when the click arrives.
   const history = []; // { t, x, y } for the last ~2 s (double mode clicks arrive ~0.8 s after the raise)
@@ -127,6 +141,7 @@ export function createCursor({ api, onClick = () => {}, onDrag = () => {}, onPau
     c.dragging = false;
     dwellStart = null;
     history.length = 0; // positions from before a pause don't count
+    smoothX.reset(); smoothY.reset();
     if (!paused) {
       c.x = innerWidth / 2; c.y = innerHeight / 2; c.vx = c.vy = 0;
       api.send({ cmd: "zero" });
@@ -163,13 +178,25 @@ export function createCursor({ api, onClick = () => {}, onDrag = () => {}, onPau
     const active = !c.paused && c.visible;
     if (active) {
       const [hx, hy] = headXY(c.head);
-      const clamp = (v) => Math.max(-settings.maxSpeed, Math.min(settings.maxSpeed, v));
-      const tx = clamp(deadzone(hx, settings.deadzone) * settings.speed);
-      const ty = clamp(deadzone(hy, settings.deadzone) * settings.speed);
-      c.vx = 0.6 * c.vx + 0.4 * tx;
-      c.vy = 0.6 * c.vy + 0.4 * ty;
-      const nx = Math.max(0, Math.min(innerWidth - 1, c.x + c.vx * dt));
-      const ny = Math.max(0, Math.min(innerHeight - 1, c.y + c.vy * dt));
+      const gains = pointGains();
+      let nx, ny;
+      if (gains) {
+        // point: absolute head-mouse position, smoothed (steady when still, quick when moving)
+        const target = pointTarget([hx, hy], gains, innerWidth, innerHeight);
+        for (const f of [smoothX, smoothY]) { f.minCutoff = settings.oneEuroMinCutoff; f.beta = settings.oneEuroBeta; }
+        nx = smoothX.filter(target.x, now / 1000);
+        ny = smoothY.filter(target.y, now / 1000);
+      } else {
+        // joystick: tilt sets the cursor's speed
+        const clamp = (v) => Math.max(-settings.maxSpeed, Math.min(settings.maxSpeed, v));
+        const tx = clamp(deadzone(hx, settings.deadzone) * settings.speed);
+        const ty = clamp(deadzone(hy, settings.deadzone) * settings.speed);
+        c.vx = 0.6 * c.vx + 0.4 * tx;
+        c.vy = 0.6 * c.vy + 0.4 * ty;
+        nx = Math.max(0, Math.min(innerWidth - 1, c.x + c.vx * dt));
+        ny = Math.max(0, Math.min(innerHeight - 1, c.y + c.vy * dt));
+        smoothX.reset(); smoothY.reset();
+      }
       if (c.dragging) onDrag(nx - c.x, ny - c.y);
       c.x = nx; c.y = ny;
       history.push({ t: now, x: c.x, y: c.y });

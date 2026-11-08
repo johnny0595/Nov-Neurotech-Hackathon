@@ -26,6 +26,25 @@ test("range gains: comfortable tilt reaches the edge, a small up range still rea
   assert.equal(P.gainsFromRange(null, 1600, 900), null);
 });
 
+test("point target: centre at rest, edges at comfortable tilt, clamped beyond", () => {
+  const g = P.gainsFromRange({ left: 10, right: 20, down: 12, up: 4 }, 1600, 900);
+  assert.deepEqual(P.pointTarget([0, 0], g, 1600, 900), { x: 800, y: 450 });
+  assert.deepEqual(P.pointTarget([-10, -4], g, 1600, 900), { x: 0, y: 0 });
+  assert.deepEqual(P.pointTarget([20, 12], g, 1600, 900), { x: 1599, y: 899 });
+  assert.deepEqual(P.pointTarget([40, 30], g, 1600, 900), { x: 1599, y: 899 });
+});
+
+test("One Euro: jitter is damped when still, a quick move is followed closely", () => {
+  const f = new P.OneEuro({ minCutoff: 1, beta: 0.02 });
+  let out;
+  for (let i = 0; i < 120; i++) out = f.filter(500 + (i % 2 ? 6 : -6), i / 60); // ±6 px tremor at 60 fps
+  assert.ok(Math.abs(out - 500) < 2, `still jitter ${out}`);
+  for (let i = 120; i < 150; i++) out = f.filter(500 + (i - 119) * 20, i / 60); // fast sweep, 1200 px/s
+  assert.ok(500 + 31 * 20 - out < 80, `lag ${500 + 31 * 20 - out}`);
+  f.reset();
+  assert.equal(f.filter(42, 10), 42);
+});
+
 let failed = 0;
 for (const [name, fn] of tests) {
   try { fn(); console.log(`ok   ${name}`); } catch (err) { failed++; console.log(`FAIL ${name}\n     ${err.message}`); }

@@ -43,12 +43,15 @@ const fmt = (v) => (v ?? 0).toFixed(1).padStart(6);
 let lastXY = [0, 0]; // latest head tilt (x right, y down), for the range step
 
 // ---------- head settings ----------
-for (const id of ["xAxis", "yAxis", "invertX", "invertY", "speed", "deadzone", "lookSpeed"]) {
+for (const id of ["xAxis", "yAxis", "invertX", "invertY", "speed", "deadzone", "lookSpeed", "cursorMode", "oneEuroMinCutoff", "oneEuroBeta"]) {
   const el = $(id);
   const key = el.type === "checkbox" ? "checked" : "value";
+  const out = $(`${id}-val`);
   el[key] = settings[id];
+  if (out) out.textContent = settings[id];
   el.oninput = () => {
     settings[id] = el.type === "checkbox" ? el.checked : el.type === "range" ? Number(el.value) : el.value;
+    if (out) out.textContent = settings[id];
     saveSettings();
   };
 }
