@@ -12,6 +12,8 @@ const CANCEL_MS = 700;
 const RESULT_AUTO_S = 6; // the result screen moves on by itself (a raise skips the wait): fewer raises per round
 const STILL_ZERO_MS = 3000; // auto re-zero after this long still and centred on a screen with nothing to do
 const STILL_DPS = 5;
+const STICK_MAX_DEG = 15; // the look-screen stick's outer ring
+const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
 const $ = (id) => document.getElementById(id);
 const region = currentRegion();
 const params = new URLSearchParams(location.search);
@@ -101,7 +103,10 @@ const cursor = createCursor({
 });
 
 // ---------- guess map (Leaflet + OpenStreetMap, free) ----------
-const map = L.map("map", { zoomControl: false, ...region.mapOptions }).setView(region.view.center, region.view.zoom);
+const map = L.map("map", {
+  zoomControl: false, ...region.mapOptions,
+  zoomAnimation: !reduceMotion, fadeAnimation: !reduceMotion, markerZoomAnimation: !reduceMotion,
+}).setView(region.view.center, region.view.zoom);
 // The result view needs room for padding around the guess line, which maxBounds/minZoom would fight,
 // so the bounds are lifted while the result card is up and restored for the next round.
 function lockMap(locked) {
@@ -383,6 +388,7 @@ function steer(now) {
     const [x, y] = headXY(head);
     const dx = deadzone(x, settings.deadzone);
     const dy = deadzone(y, settings.deadzone);
+    updateLookGuide(x, y, dx, dy);
     if (pano && (dx || dy) && now > manualUntil) {
       const current = pano.getPov();
       const pitch = current.pitch - dy * settings.lookSpeed * 0.5 * dt;
@@ -395,6 +401,25 @@ function steer(now) {
     }
   }
   requestAnimationFrame(steer);
+}
+
+// Look-screen guidance: the stick shows the head's tilt against the dead zone; each edge chevron glows
+// in proportion to how fast the view is turning that way.
+const stick = $("look-stick");
+const chevrons = { left: document.querySelector(".chev-left"), right: document.querySelector(".chev-right"),
+  up: document.querySelector(".chev-up"), down: document.querySelector(".chev-down") };
+function updateLookGuide(x, y, dx, dy) {
+  const radius = stick.clientWidth / 2 - 5;
+  const len = Math.hypot(x, y) || 1;
+  const k = Math.min(1, len / STICK_MAX_DEG) * radius / len;
+  stick.querySelector(".stick-dot").style.translate = `${x * k}px ${y * k}px`;
+  stick.style.setProperty("--dz", Math.min(1, settings.deadzone / STICK_MAX_DEG).toFixed(3));
+  stick.classList.toggle("turning", Boolean(dx || dy));
+  const glow = (v) => Math.min(1, Math.max(0, v) / 6).toFixed(2); // full glow at 6° past the dead zone
+  chevrons.left.style.opacity = glow(-dx);
+  chevrons.right.style.opacity = glow(dx);
+  chevrons.up.style.opacity = glow(-dy);
+  chevrons.down.style.opacity = glow(dy);
 }
 
 // Drift fix: on a screen with nothing to aim at (start, result), a head that has been centred and still

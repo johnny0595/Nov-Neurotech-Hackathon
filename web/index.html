@@ -39,8 +39,14 @@
       <p>Use the hint and guess on the map!</p>
     </div>
     <div id="loc-hint" class="loc-hint" hidden>💡 Hint: <span id="loc-hint-text"></span></div>
+    <!-- head guidance: chevrons glow with turning speed; the stick shows tilt vs the dead zone -->
+    <div class="chevron chev-left" aria-hidden="true">‹</div>
+    <div class="chevron chev-right" aria-hidden="true">›</div>
+    <div class="chevron chev-up" aria-hidden="true">‹</div>
+    <div class="chevron chev-down" aria-hidden="true">›</div>
     <div class="action-row look-row">
-      <div class="hint">Turn your head to look around · <b>Raise eyebrows</b> to guess on the map 🗺️</div>
+      <div id="look-stick" class="look-stick" aria-hidden="true"><div class="stick-dz"></div><div class="stick-dot"></div></div>
+      <div class="hint look-pill">🤨 <b>Raise</b> = I know where this is!</div>
       <button id="to-map" class="big primary" data-raise-label="Go to the map" title="Mouse: drag to look around, click arrows to walk">🗺️ Map</button>
     </div>
   </section>

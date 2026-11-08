@@ -179,6 +179,31 @@ button.big.confirming { background: var(--coral); animation: ring-pulse 1.2s eas
 .brow-meter.compact .brow-meter-label { margin-top: 2px; font-size: 15px; background: var(--card); border-radius: 8px; padding: 0 8px; justify-self: start; display: inline-block; }
 
 
+/* ---------- look-screen head guidance ---------- */
+.look-stick {
+  position: relative; width: 140px; height: 140px; flex: none; border-radius: 50%;
+  background: rgba(20,22,43,.55); border: 5px solid rgba(255,248,231,.85);
+}
+.stick-dz {
+  position: absolute; left: 50%; top: 50%; width: calc(var(--dz, .2) * 100%); height: calc(var(--dz, .2) * 100%);
+  translate: -50% -50%; border-radius: 50%; border: 3px dashed rgba(255,248,231,.85);
+}
+.stick-dot {
+  position: absolute; left: 50%; top: 50%; width: 30px; height: 30px; margin: -15px; border-radius: 50%;
+  background: var(--coral); box-shadow: 0 0 0 4px #fff;
+}
+.look-stick.turning .stick-dot { background: var(--sun); }
+.look-pill { font-size: 30px; }
+.chevron {
+  position: absolute; z-index: 390; pointer-events: none; opacity: 0;
+  font: 800 150px/1 "Baloo 2", system-ui, sans-serif; color: var(--sun);
+  text-shadow: 0 0 18px rgba(0,0,0,.6), 0 6px 0 #1b1f3b;
+}
+.chev-left { left: 12px; top: 50%; translate: 0 -55%; }
+.chev-right { right: 12px; top: 50%; translate: 0 -55%; }
+.chev-up { left: 50%; top: calc(12vh + 8px); rotate: 90deg; translate: -50% 0; }
+.chev-down { left: 50%; bottom: 190px; rotate: 90deg; translate: -50% 0; }
+
 /* ---------- look-screen hint ---------- */
 .loc-hint {
   position: absolute; left: 50%; top: 84px; translate: -50% 0; z-index: 400; max-width: calc(100% - 380px);
@@ -213,6 +238,11 @@ button.big.confirming { background: var(--coral); animation: ring-pulse 1.2s eas
   .action-row { gap: 40px; flex-wrap: wrap; }
   .topbar { font-size: 18px; gap: 8px; }
 }
+/* Respect reduced motion: no pops, pulses or slides (feedback still appears, it just doesn't move) */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+
 @media (max-height: 800px) {
   /* short laptop screens: keep the result card compact so the guess line stays visible above it */
   .card { padding: 12px 32px 18px; }
