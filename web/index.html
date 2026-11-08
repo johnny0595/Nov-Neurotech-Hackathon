@@ -24,7 +24,7 @@
       <div id="start-meter"></div>
     </div>
     <div class="action-row">
-      <button id="play" class="big primary">▶ Play</button>
+      <button id="play" class="big primary" data-raise-label="Play">▶ Play</button>
     </div>
   </section>
 
@@ -41,7 +41,7 @@
     <div id="loc-hint" class="loc-hint" hidden>💡 Hint: <span id="loc-hint-text"></span></div>
     <div class="action-row look-row">
       <div class="hint">Turn your head to look around · <b>Raise eyebrows</b> to guess on the map 🗺️</div>
-      <button id="to-map" class="big primary" title="Mouse: drag to look around, click arrows to walk">🗺️ Map</button>
+      <button id="to-map" class="big primary" data-raise-label="Go to the map" title="Mouse: drag to look around, click arrows to walk">🗺️ Map</button>
     </div>
   </section>
 
@@ -49,10 +49,10 @@
     <div id="map"></div>
     <div class="top-band" aria-hidden="true"></div>
     <div class="action-row">
-      <button id="look-again" class="big">👀 Look</button>
-      <button id="zoom-out" class="big round" aria-label="Zoom out">－</button>
-      <button id="zoom-in" class="big round" aria-label="Zoom in">＋</button>
-      <button id="submit-guess" class="big primary" disabled>📍 Guess!</button>
+      <button id="look-again" class="big" data-raise-label="Look again">👀 Look</button>
+      <button id="zoom-out" class="big round" data-raise-label="Zoom out" aria-label="Zoom out">－</button>
+      <button id="zoom-in" class="big round" data-raise-label="Zoom in" aria-label="Zoom in">＋</button>
+      <button id="submit-guess" class="big primary" data-raise-label="Guess!" disabled>📍 Guess!</button>
     </div>
     <div id="guess-hint" class="hint small">Raise once = drop pin / press · Raise twice = grab &amp; move the map</div>
   </section>
@@ -67,7 +67,7 @@
         <div><span id="result-points"></span><small>points</small></div>
       </div>
       <p id="result-fact" class="fact"></p>
-      <button id="next" class="big primary">Next ▶</button>
+      <button id="next" class="big primary" data-raise-label="Next">Next ▶</button>
     </div>
   </section>
 
@@ -81,8 +81,8 @@
       </div>
     </div>
     <div class="action-row">
-      <button id="helper-toggle" class="big" aria-expanded="false" aria-controls="helper-panel">📋 Helper</button>
-      <button id="play-again" class="big primary">Play again ▶</button>
+      <button id="helper-toggle" class="big" data-raise-label="Helper summary" aria-expanded="false" aria-controls="helper-panel">📋 Helper</button>
+      <button id="play-again" class="big primary" data-raise-label="Play again">Play again ▶</button>
     </div>
   </section>
 

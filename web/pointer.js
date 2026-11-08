@@ -68,3 +68,31 @@ export class OneEuro {
     return this.value;
   }
 }
+
+// ---------- magnetic targets ----------
+/** Distance from a point to a rect's edge (0 inside). rect: { left, top, right, bottom }. */
+export function edgeDistance({ x, y }, r) {
+  const dx = Math.max(r.left - x, 0, x - r.right);
+  const dy = Math.max(r.top - y, 0, y - r.bottom);
+  return Math.hypot(dx, dy);
+}
+
+/**
+ * Ease the cursor toward the centre of the nearest target within `radius` px. Returns the displayed
+ * position and the index of the target pulling it (-1 if none). strength 0 = off, 1 = snap.
+ */
+export function magnetize(pos, rects, radius = 80, strength = 0.6) {
+  let best = -1;
+  let bestD = Infinity;
+  rects.forEach((r, i) => {
+    const d = edgeDistance(pos, r);
+    if (d <= radius && d < bestD) { best = i; bestD = d; }
+  });
+  if (best < 0 || strength <= 0) return { x: pos.x, y: pos.y, index: best };
+  const r = rects[best];
+  const w0 = 1 - bestD / radius;
+  const w = strength * w0 * w0 * (3 - 2 * w0); // smoothstep: gentle at the edge of the zone, full near/inside
+  const cx = (r.left + r.right) / 2;
+  const cy = (r.top + r.bottom) / 2;
+  return { x: pos.x + w * (cx - pos.x), y: pos.y + w * (cy - pos.y), index: best };
+}

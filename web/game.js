@@ -70,6 +70,9 @@ const cursor = createCursor({
   onDrag(dx, dy) {
     if (game.mode === "guess") map.panBy([-dx, -dy], { animate: false });
   },
+  labelAt(x, y, target) {
+    return game.mode === "guess" && target.closest("#map") ? "Drop pin" : "";
+  },
   onPauseChange(paused) {
     if (!paused && stats.shownAt !== null) stats.shownAt = performance.now(); // time spent paused doesn't count
   },

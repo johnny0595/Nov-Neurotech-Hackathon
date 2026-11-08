@@ -45,6 +45,24 @@ test("One Euro: jitter is damped when still, a quick move is followed closely", 
   assert.equal(f.filter(42, 10), 42);
 });
 
+test("magnet: no pull far away, gentle at 80 px, strong inside the button", () => {
+  const btn = { left: 400, top: 600, right: 600, bottom: 740 }; // centre (500, 670)
+  assert.deepEqual(P.magnetize({ x: 100, y: 100 }, [btn]), { x: 100, y: 100, index: -1 });
+  const edge = P.magnetize({ x: 300, y: 670 }, [btn], 80, 0.6); // 100 px away: outside the zone
+  assert.equal(edge.index, -1);
+  const near = P.magnetize({ x: 340, y: 670 }, [btn], 80, 0.6); // 60 px from the edge
+  assert.ok(near.x > 340 && near.x < 380, `near ${near.x}`);
+  const inside = P.magnetize({ x: 420, y: 610 }, [btn], 80, 0.6);
+  assert.equal(Math.round(inside.x), 468); assert.equal(Math.round(inside.y), 646);
+  assert.deepEqual(P.magnetize({ x: 420, y: 610 }, [btn], 80, 0), { x: 420, y: 610, index: 0 }); // off
+});
+
+test("magnet picks the nearest of several buttons", () => {
+  const a = { left: 0, top: 0, right: 100, bottom: 100 }, b = { left: 200, top: 0, right: 300, bottom: 100 };
+  assert.equal(P.magnetize({ x: 170, y: 50 }, [a, b]).index, 1);
+  assert.equal(P.magnetize({ x: 130, y: 50 }, [a, b]).index, 0);
+});
+
 let failed = 0;
 for (const [name, fn] of tests) {
   try { fn(); console.log(`ok   ${name}`); } catch (err) { failed++; console.log(`FAIL ${name}\n     ${err.message}`); }

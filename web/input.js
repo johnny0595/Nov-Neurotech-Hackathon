@@ -1,5 +1,5 @@
 // Head + eyebrow input shared by the game and the calibration page.
-import { OneEuro, gainsFromRange, lockLookbackMs, pointTarget, positionAt } from "./pointer.js";
+import { OneEuro, gainsFromRange, lockLookbackMs, magnetize, pointTarget, positionAt } from "./pointer.js";
 
 // Live: head angles and eyebrow events stream from the Python server over /ws.
 // Mock (?mock=1): mouse position stands in for head tilt, C = eyebrow click (a 0.3 s raise), D = double raise.
@@ -13,7 +13,9 @@ const DEFAULTS = {
   cursorMode: "point",
   oneEuroMinCutoff: 1.0, // Hz: lower = steadier when still
   oneEuroBeta: 0.02, // higher = less lag when moving fast
+  magnet: 0.6, // pull toward a button within 80 px: 0 = off, 1 = snap to its centre
 };
+const MAGNET_RADIUS = 80;
 const MOCK_RANGE = { left: 20, right: 20, down: 20, up: 20 }; // mock maps the window edges to ±20°
 
 function readStored() {
@@ -112,7 +114,7 @@ export const NO_CLICK_TOP = 0.12; // top 12% of the screen: looking up makes peo
  * Head clicks in the top 12% of the screen are ignored (looking up causes involuntary raises).
  * Resuming recenters the cursor and re-zeros the head's neutral pose.
  */
-export function createCursor({ api, onClick = () => {}, onDrag = () => {}, onPauseChange = () => {} }) {
+export function createCursor({ api, onClick = () => {}, onDrag = () => {}, onPauseChange = () => {}, labelAt = () => "" }) {
   const el = document.createElement("div");
   el.className = "head-cursor";
   const corner = document.createElement("div");
@@ -121,10 +123,14 @@ export function createCursor({ api, onClick = () => {}, onDrag = () => {}, onPau
   const overlay = document.createElement("div");
   overlay.className = "pause-overlay";
   overlay.innerHTML = `<div><h1>Paused</h1><p>Look straight ahead,<br>then <b>raise your eyebrows</b> to play.</p><small>Helper: press Space or click here</small></div>`;
-  document.body.append(corner, overlay, el);
+  // "What will a raise do here?" pill under the cursor: data-raise-label on buttons, or labelAt() from the page
+  const label = document.createElement("div");
+  label.className = "raise-label hidden";
+  document.body.append(corner, overlay, el, label);
   overlay.addEventListener("click", () => setPaused(false)); // mouse fallback: click to resume
 
-  const c = { x: innerWidth / 2, y: innerHeight / 2, vx: 0, vy: 0, paused: true, dragging: false, visible: true, head: {} };
+  // x/y: where the head points; sx/sy: shown position after the magnet (used for hit-testing and click lock)
+  const c = { x: innerWidth / 2, y: innerHeight / 2, sx: innerWidth / 2, sy: innerHeight / 2, vx: 0, vy: 0, paused: true, dragging: false, visible: true, head: {} };
   let hovered = null;
   let dragEnabled = true; // false when the server runs single-raise-only (no --double)
   let dwellStart = null;
@@ -135,7 +141,7 @@ export function createCursor({ api, onClick = () => {}, onDrag = () => {}, onPau
   // where the cursor was just before the raise began, not where it is when the click arrives.
   const history = []; // { t, x, y } for the last ~2 s (double mode clicks arrive ~0.8 s after the raise)
   function lockedPosition(e) {
-    return positionAt(history, performance.now() - lockLookbackMs(e)) ?? { x: c.x, y: c.y };
+    return positionAt(history, performance.now() - lockLookbackMs(e)) ?? { x: c.sx, y: c.sy };
   }
 
   function setPaused(paused) {
@@ -145,11 +151,15 @@ export function createCursor({ api, onClick = () => {}, onDrag = () => {}, onPau
     history.length = 0; // positions from before a pause don't count
     smoothX.reset(); smoothY.reset();
     if (!paused) {
-      c.x = innerWidth / 2; c.y = innerHeight / 2; c.vx = c.vy = 0;
+      c.x = c.sx = innerWidth / 2; c.y = c.sy = innerHeight / 2; c.vx = c.vy = 0;
       api.send({ cmd: "zero" });
     }
     document.body.classList.toggle("is-paused", paused);
     onPauseChange(paused);
+  }
+
+  function clickableButtons() {
+    return [...document.querySelectorAll("button")].filter((b) => !b.disabled && b.offsetParent !== null && !b.closest("#pano"));
   }
 
   function flash(kind) {
@@ -202,20 +212,30 @@ export function createCursor({ api, onClick = () => {}, onDrag = () => {}, onPau
       }
       if (c.dragging) onDrag(nx - c.x, ny - c.y);
       c.x = nx; c.y = ny;
-      history.push({ t: now, x: c.x, y: c.y });
+      // magnetic targets: ease toward a nearby enabled button (not while dragging the map)
+      const targets = c.dragging || !settings.magnet ? [] : clickableButtons();
+      const shown = magnetize({ x: c.x, y: c.y }, targets.map((b) => b.getBoundingClientRect()), MAGNET_RADIUS, settings.magnet);
+      c.sx = shown.x; c.sy = shown.y;
+      history.push({ t: now, x: c.sx, y: c.sy });
       while (history.length && now - history[0].t > 2000) history.shift();
 
-      const button = document.elementFromPoint(c.x, c.y)?.closest("button");
+      const under = c.sy < innerHeight * NO_CLICK_TOP ? null : document.elementFromPoint(c.sx, c.sy);
+      const button = under?.closest("button");
       if (button !== hovered) { hovered?.classList.remove("head-hover"); button?.classList.add("head-hover"); hovered = button; }
+      const text = button ? (button.disabled ? "" : button.dataset.raiseLabel ?? "") : under ? labelAt(c.sx, c.sy, under) : "";
+      if (label.textContent !== text) label.textContent = text;
+      label.classList.toggle("hidden", !text);
+      label.style.transform = `translate(${c.sx}px, ${c.sy + 50}px)`;
 
       const r = corner.getBoundingClientRect();
-      const inCorner = c.x >= r.left && c.x <= r.right && c.y >= r.top && c.y <= r.bottom;
+      const inCorner = c.sx >= r.left && c.sx <= r.right && c.sy >= r.top && c.sy <= r.bottom;
       dwellStart = inCorner ? (dwellStart ?? now) : null;
       const progress = dwellStart ? Math.min(1, (now - dwellStart) / DWELL_MS) : 0;
       corner.style.setProperty("--p", progress);
       if (progress >= 1) setPaused(true);
     } else if (hovered) { hovered.classList.remove("head-hover"); hovered = null; }
-    el.style.transform = `translate(${c.x}px, ${c.y}px)`;
+    if (!active) label.classList.add("hidden");
+    el.style.transform = `translate(${c.sx}px, ${c.sy}px)`;
     el.classList.toggle("hidden", !active);
     el.classList.toggle("dragging", c.dragging);
     corner.classList.toggle("hidden", !active);
@@ -236,7 +256,7 @@ export function createCursor({ api, onClick = () => {}, onDrag = () => {}, onPau
     resume() { setPaused(false); },
     get paused() { return c.paused; },
     get dragging() { return c.dragging; },
-    get position() { return { x: c.x, y: c.y }; },
+    get position() { return { x: c.sx, y: c.sy }; },
     lockedPosition,
     stopDrag() { c.dragging = false; },
     setDragEnabled(v) { dragEnabled = v; if (!v) c.dragging = false; },
