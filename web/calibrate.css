@@ -47,3 +47,6 @@ body.setup { overflow: auto; font-size: 18px; }
 .range-values th { color: var(--muted); font-weight: 700; }
 .range-values td { font-size: 24px; }
 .small-note { font-size: 15px; margin: -4px 0 8px; }
+/* head section: manual settings tucked away (calibrate.html) */
+.advanced { margin-top: 12px; }
+.advanced summary { cursor: pointer; font-weight: 700; }

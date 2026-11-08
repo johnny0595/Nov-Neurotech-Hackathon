@@ -14,11 +14,15 @@ Time is counted in samples, so replaying a recording is deterministic.
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
+import json
+from dataclasses import asdict, dataclass, fields
 from math import sqrt
+from pathlib import Path
 
 import numpy as np
 from scipy import signal
+
+PARAMS_PATH = Path(__file__).resolve().parent.parent / "data" / "detector_params.json"
 
 
 @dataclass
@@ -34,6 +38,16 @@ class DetectorParams:
     double_window_s: float = 0.8  # second raise must end within this long after the first
     debounce_s: float = 0.1
     double_enabled: bool = True  # False: single raises only, clicks fire immediately
+
+    @classmethod
+    def load(cls, path: Path = PARAMS_PATH, **overrides) -> "DetectorParams":
+        """Defaults, replaced by tuned values from server.train if that file exists."""
+        values: dict = {}
+        if path.exists():
+            saved = json.loads(path.read_text()).get("params", {})
+            names = {f.name for f in fields(cls)}
+            values = {k: tuple(v) if k == "band_hz" else v for k, v in saved.items() if k in names}
+        return cls(**{**values, **overrides})
 
 
 class EyebrowDetector:

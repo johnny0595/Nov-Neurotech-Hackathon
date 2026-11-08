@@ -1,4 +1,4 @@
-import { connect, createCursor, deadzone, headXY, settings } from "./input.js";
+import { beep, connect, createCursor, deadzone, headXY, settings } from "./input.js";
 import { createMeter } from "./meter.js";
 import { currentRegion, panoRequest } from "./regions.js";
 
@@ -17,6 +17,10 @@ const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
 const $ = (id) => document.getElementById(id);
 const region = currentRegion();
 const params = new URLSearchParams(location.search);
+// Look-screen pill: what a raise does in Street View (walking needs double raises, the default)
+const lookHintHtml = () => (game.doubleEnabled
+  ? "🚶 <b>Raise once</b> to walk · 🤨 <b>raise twice</b> = I know where this is!"
+  : "🤨 <b>Raise</b> = I know where this is!");
 
 const game = {
   mode: "start", round: 0, total: 0, answer: null, guess: null, pov: { heading: 0, pitch: 0 },
@@ -70,11 +74,16 @@ const api = connect({
     }
     // RESULT: there's only "Next", so any raise skips the countdown, wherever the cursor is.
     if (game.mode === "result" && !cursor.paused && e.type === "click") return $("next").click();
-    // LOOK: the head steers the camera, so a single raise just means "go to the map".
-    // There is nothing to drag there, so a double raise is ignored (it used to leave dragging = true).
+    // LOOK: the head steers the camera. With double raises (the default): a single raise walks forward
+    // along the road in view, a double raise opens the map. Single-raise mode (--single): a raise opens the map.
     if (game.mode === "look" && !cursor.paused) {
-      if (e.type === "click") return showGuess();
-      if (e.type === "drag_toggle") return;
+      if (game.doubleEnabled) {
+        if (e.type === "click") return walkForward();
+        if (e.type === "drag_toggle") { beep(880); return showGuess(); }
+      } else {
+        if (e.type === "click") return showGuess();
+        if (e.type === "drag_toggle") return;
+      }
     }
     cursor.handleEvent(e);
   },
@@ -179,6 +188,7 @@ function setDoubleEnabled(enabled) {
   $("guess-hint").innerHTML = enabled
     ? "Raise = drop pin · raise again on it = lock it in · raise twice quickly = grab the map"
     : "Raise = drop pin · raise again on the pin = lock it in";
+  if (!$("look-hint").classList.contains("notice")) $("look-hint").innerHTML = lookHintHtml();
 }
 
 function show(mode) {
@@ -217,6 +227,58 @@ async function startGame() {
 }
 
 $("play").onclick = startGame;
+
+// Walk to the next Street View photo along the road you're facing.
+const angleBetween = (a, b) => Math.abs(((a - b + 540) % 360) - 180);
+const MAX_WALK_ANGLE = 40; // the road must be on screen, roughly where you're looking
+let hintTimer = null;
+function flashHint(html) {
+  const hint = $("look-hint");
+  hint.innerHTML = html;
+  hint.classList.add("notice");
+  clearTimeout(hintTimer);
+  hintTimer = setTimeout(() => { hint.innerHTML = lookHintHtml(); hint.classList.remove("notice"); }, 2500);
+}
+/** The road link closest to where you're looking, and its signed angle from the view centre (+ = right). */
+function nearestLink() {
+  const links = (pano?.getLinks() || []).filter((l) => l?.pano);
+  if (!links.length) return null;
+  const best = links.reduce((a, b) => (angleBetween(b.heading, game.pov.heading) < angleBetween(a.heading, game.pov.heading) ? b : a));
+  const signed = ((best.heading - game.pov.heading + 540) % 360) - 180;
+  return { link: best, signed, walkable: Math.abs(signed) <= MAX_WALK_ANGLE };
+}
+function walkForward() {
+  if (!pano) return;
+  const near = nearestLink();
+  if (!near) return flashHint("No road to walk along here. Raise <b>twice</b> to guess 🗺️");
+  if (!near.walkable) return flashHint("Turn toward the road, then raise to walk 🚶");
+  pano.setPano(near.link.pano);
+}
+
+// Shows where a raise will walk to: a green arrow on the road ahead, or an edge hint
+// pointing to the nearest road when none is in front of you.
+function drawWalkMarker() {
+  // only with double raises (walking), and only when this round has a panorama
+  const show = pano && game.doubleEnabled && game.mode === "look" && !cursor.paused && $("pano").style.visibility !== "hidden";
+  $("aim").hidden = !show;
+  const near = show ? nearestLink() : null;
+  $("walk-marker").hidden = !near?.walkable;
+  $("road-edge").hidden = !near || near.walkable;
+  if (!near) return;
+  if (near.walkable) {
+    const w = $("look").clientWidth;
+    const fov = 180 / 2 ** (pano.getZoom() ?? 1); // Street View's horizontal field of view
+    const f = w / 2 / Math.tan((fov / 2) * Math.PI / 180);
+    const x = w / 2 + f * Math.tan(near.signed * Math.PI / 180);
+    $("walk-marker").style.left = `${Math.max(60, Math.min(w - 60, x))}px`;
+    $("walk-marker").style.rotate = `${near.signed * 0.5}deg`; // lean toward the road's direction
+  } else {
+    const right = near.signed > 0;
+    $("road-edge").className = `road-edge ${right ? "right" : "left"}`;
+    $("road-edge").textContent = right ? "road ➡" : "⬅ road";
+  }
+}
+
 $("look-again").onclick = () => show("look");
 $("to-map").onclick = showGuess; // mouse fallback for "raise to go to the map"
 $("zoom-in").onclick = () => map.zoomIn();
@@ -400,6 +462,7 @@ function steer(now) {
       pano.setPov(game.pov);
     }
   }
+  drawWalkMarker();
   requestAnimationFrame(steer);
 }
 
@@ -443,19 +506,52 @@ async function loadGoogleMaps() {
   await new Promise((resolve, reject) => {
     window.__mapsReady = resolve;
     const s = document.createElement("script");
-    s.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(mapsKey)}&v=weekly&callback=__mapsReady`;
+    s.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(mapsKey)}&v=weekly&loading=async&callback=__mapsReady`;
     s.onerror = reject;
     document.head.append(s);
   });
   svService = new google.maps.StreetViewService();
-  pano = new google.maps.StreetViewPanorama($("pano"), {
+  pano = makePano();
+  return true;
+}
+
+function makePano() {
+  panoSize = { w: $("pano").clientWidth, h: $("pano").clientHeight };
+  return new google.maps.StreetViewPanorama($("pano"), {
     // No address or road names (they'd give the answer away). Walking arrows, click-to-go and scroll
     // zoom are on for the mouse fallback; the head cursor is hidden on this screen, so head play is unchanged.
     disableDefaultUI: true, addressControl: false, showRoadLabels: false, linksControl: true,
     clickToGo: true, motionTracking: false, motionTrackingControl: false, scrollwheel: true,
   });
-  return true;
 }
+
+// Maximizing or resizing the window: Street View and Leaflet keep their old canvas size (the view
+// looks zoomed in) until they're told to re-measure.
+let resizeTimer = null;
+let panoSize = { w: 0, h: 0 };
+function refit() {
+  const { clientWidth: w, clientHeight: h } = $("pano");
+  if (pano && w && h && (w !== panoSize.w || h !== panoSize.h)) {
+    // The Maps "resize" event left Street View's canvas at its old size (zoomed-in look), so
+    // rebuild the panorama at the new size, on the same photo, facing the same way.
+    const id = pano.getPano();
+    const pov = pano.getPov();
+    const zoom = pano.getZoom();
+    $("pano").replaceChildren();
+    pano = makePano();
+    if (id) pano.setPano(id);
+    pano.setPov(pov);
+    if (zoom !== undefined) pano.setZoom(zoom);
+  }
+  map.invalidateSize();
+}
+const scheduleRefit = () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(refit, 300); };
+addEventListener("resize", scheduleRefit);
+new ResizeObserver(scheduleRefit).observe($("pano")); // also catches size changes with no window resize event
+setInterval(() => { // backstop: some window managers maximize without either notification
+  const { clientWidth: w, clientHeight: h } = $("pano");
+  if (pano && w && h && (w !== panoSize.w || h !== panoSize.h)) scheduleRefit();
+}, 1000);
 
 const mapsReady = loadGoogleMaps().catch(() => false);
 show("start");

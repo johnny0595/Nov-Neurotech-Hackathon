@@ -3,7 +3,8 @@ import { OneEuro, gainsFromRange, lockLookbackMs, magnetize, pointTarget, positi
 
 // Live: head angles and eyebrow events stream from the Python server over /ws.
 // Mock (?mock=1): mouse position stands in for head tilt, C = eyebrow click (a 0.3 s raise), D = double raise.
-// Like the server (without --double), mock is single-raise-only; add &double=1 to make D drag the map.
+// Like the server, mock has double raises on (D = walk-mode "open the map" / grab the map); add &single=1 to turn
+// them off, like the server's --single.
 // G = a raise the server ignored because the head was moving (gated_raise).
 
 const DEFAULTS = {
@@ -38,6 +39,8 @@ export function pointGains() {
 /** Head tilt in degrees as [x, y]; right and down are positive. */
 export function headXY(state) {
   if (mock) return [state.roll || 0, state.pitch || 0];
+  // Learned axes from the setup page's "Learn my head movements" (server/head_axes.py) beat the manual axis settings.
+  if (state.hx !== undefined) return [state.hx, state.hy];
   const pick = (axis, invert) => (state[axis] || 0) * (invert ? -1 : 1);
   return [pick(settings.xAxis, settings.invertX), pick(settings.yAxis, settings.invertY)];
 }
@@ -50,7 +53,7 @@ export function deadzone(value, dz) {
 export function connect({ onState = () => {}, onEvent = () => {}, onMessage = () => {} } = {}) {
   const api = { connected: false, send() {} };
   if (mock) {
-    const double_enabled = new URLSearchParams(location.search).has("double");
+    const double_enabled = !new URLSearchParams(location.search).has("single");
     const fake = { roll: 0, pitch: 0, yaw: 0, status: `mock (mouse + C${double_enabled ? "/D" : ""} keys)`, envelope: 3, threshold: 10, rate_hz: 0, double_enabled, gyro_dps: 0 };
     let prevTilt = [0, 0];
     addEventListener("mousemove", (e) => {

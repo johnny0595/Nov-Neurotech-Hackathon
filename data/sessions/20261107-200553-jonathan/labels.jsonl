@@ -1,0 +1,170 @@
+{"type": "detected", "sample": 142, "duration_s": 0.2, "label": "raise"}
+{"type": "detected", "sample": 243, "label": "click"}
+{"type": "interval", "label": "neutral", "start_sample": 378, "end_sample": 1381}
+{"type": "detected", "sample": 1769, "duration_s": 0.152, "label": "raise"}
+{"type": "detected", "sample": 1870, "label": "click"}
+{"type": "interval", "label": "hard_negative_blink", "start_sample": 1675, "end_sample": 1926}
+{"type": "detected", "sample": 2281, "duration_s": 0.648, "label": "raise"}
+{"type": "interval", "label": "double_raise", "start_sample": 2115, "end_sample": 2367}
+{"type": "detected", "sample": 2382, "label": "click"}
+{"type": "interval", "label": "hard_negative_talk", "start_sample": 2587, "end_sample": 2837}
+{"type": "detected", "sample": 3254, "duration_s": 0.152, "label": "raise"}
+{"type": "detected", "sample": 3355, "label": "click"}
+{"type": "interval", "label": "hard_negative_head_move", "start_sample": 3135, "end_sample": 3384}
+{"type": "detected", "sample": 3616, "duration_s": 0.48, "label": "raise"}
+{"type": "detected", "sample": 3662, "duration_s": 0.168, "label": "raise"}
+{"type": "detected", "sample": 3662, "label": "drag_toggle"}
+{"type": "detected", "sample": 3740, "duration_s": 0.44, "label": "raise"}
+{"type": "interval", "label": "eyebrow_raise", "start_sample": 3620, "end_sample": 3809}
+{"type": "detected", "sample": 3841, "label": "click"}
+{"type": "detected", "sample": 4195, "duration_s": 0.12, "label": "raise"}
+{"type": "detected", "sample": 4296, "label": "click"}
+{"type": "detected", "sample": 4358, "duration_s": 0.248, "label": "raise"}
+{"type": "interval", "label": "hard_negative_talk", "start_sample": 4116, "end_sample": 4368}
+{"type": "detected", "sample": 4459, "label": "click"}
+{"type": "detected", "sample": 4732, "duration_s": 0.088, "label": "raise"}
+{"type": "detected", "sample": 4833, "label": "click"}
+{"type": "detected", "sample": 4893, "duration_s": 0.528, "label": "raise"}
+{"type": "interval", "label": "hard_negative_talk", "start_sample": 4646, "end_sample": 4898}
+{"type": "detected", "sample": 4994, "label": "click"}
+{"type": "detected", "sample": 5259, "duration_s": 0.344, "label": "raise"}
+{"type": "interval", "label": "eyebrow_raise", "start_sample": 5113, "end_sample": 5303}
+{"type": "detected", "sample": 5360, "label": "click"}
+{"type": "detected", "sample": 5628, "duration_s": 0.12, "label": "raise"}
+{"type": "detected", "sample": 5729, "label": "click"}
+{"type": "interval", "label": "hard_negative_blink", "start_sample": 5614, "end_sample": 5865}
+{"type": "detected", "sample": 6212, "duration_s": 0.408, "label": "raise"}
+{"type": "interval", "label": "eyebrow_raise", "start_sample": 6108, "end_sample": 6297}
+{"type": "detected", "sample": 6313, "label": "click"}
+{"type": "detected", "sample": 6521, "duration_s": 0.088, "label": "raise"}
+{"type": "detected", "sample": 6555, "duration_s": 0.168, "label": "raise"}
+{"type": "detected", "sample": 6555, "label": "drag_toggle"}
+{"type": "detected", "sample": 6712, "duration_s": 0.568, "label": "raise"}
+{"type": "detected", "sample": 6813, "label": "click"}
+{"type": "interval", "label": "double_raise", "start_sample": 6596, "end_sample": 6847}
+{"type": "interval", "label": "hard_negative_swallow", "start_sample": 7066, "end_sample": 7318}
+{"type": "interval", "label": "hard_negative_swallow", "start_sample": 7539, "end_sample": 7791}
+{"type": "interval", "label": "hard_negative_head_move", "start_sample": 8058, "end_sample": 8309}
+{"type": "interval", "label": "hard_negative_blink", "start_sample": 8551, "end_sample": 8803}
+{"type": "detected", "sample": 9127, "duration_s": 0.112, "label": "raise"}
+{"type": "interval", "label": "eyebrow_raise", "start_sample": 8999, "end_sample": 9186}
+{"type": "detected", "sample": 9204, "duration_s": 0.368, "label": "raise"}
+{"type": "detected", "sample": 9204, "label": "drag_toggle"}
+{"type": "detected", "sample": 9506, "duration_s": 0.368, "label": "raise"}
+{"type": "detected", "sample": 9531, "duration_s": 0.08, "label": "raise"}
+{"type": "detected", "sample": 9531, "label": "drag_toggle"}
+{"type": "interval", "label": "eyebrow_raise", "start_sample": 9397, "end_sample": 9586}
+{"type": "detected", "sample": 9956, "duration_s": 1.44, "label": "raise"}
+{"type": "interval", "label": "eyebrow_raise", "start_sample": 9796, "end_sample": 9985}
+{"type": "detected", "sample": 10057, "label": "click"}
+{"type": "detected", "sample": 10364, "duration_s": 0.472, "label": "raise"}
+{"type": "interval", "label": "eyebrow_raise", "start_sample": 10249, "end_sample": 10438}
+{"type": "detected", "sample": 10465, "label": "click"}
+{"type": "detected", "sample": 10809, "duration_s": 0.624, "label": "raise"}
+{"type": "interval", "label": "eyebrow_raise", "start_sample": 10667, "end_sample": 10856}
+{"type": "detected", "sample": 10910, "label": "click"}
+{"type": "detected", "sample": 10980, "duration_s": 0.128, "label": "raise"}
+{"type": "detected", "sample": 11081, "label": "click"}
+{"type": "detected", "sample": 11166, "duration_s": 0.544, "label": "raise"}
+{"type": "interval", "label": "eyebrow_raise", "start_sample": 11049, "end_sample": 11238}
+{"type": "detected", "sample": 11267, "label": "click"}
+{"type": "detected", "sample": 11599, "duration_s": 0.488, "label": "raise"}
+{"type": "interval", "label": "eyebrow_raise", "start_sample": 11481, "end_sample": 11668}
+{"type": "detected", "sample": 11700, "label": "click"}
+{"type": "detected", "sample": 12076, "duration_s": 0.664, "label": "raise"}
+{"type": "detected", "sample": 12177, "label": "click"}
+{"type": "interval", "label": "double_raise", "start_sample": 11949, "end_sample": 12200}
+{"type": "detected", "sample": 12634, "duration_s": 0.552, "label": "raise"}
+{"type": "detected", "sample": 12668, "duration_s": 0.168, "label": "raise"}
+{"type": "detected", "sample": 12668, "label": "drag_toggle"}
+{"type": "interval", "label": "double_raise", "start_sample": 12503, "end_sample": 12754}
+{"type": "interval", "label": "hard_negative_swallow", "start_sample": 13067, "end_sample": 13317}
+{"type": "detected", "sample": 13644, "duration_s": 0.432, "label": "raise"}
+{"type": "detected", "sample": 13667, "duration_s": 0.08, "label": "raise"}
+{"type": "detected", "sample": 13667, "label": "drag_toggle"}
+{"type": "interval", "label": "eyebrow_raise", "start_sample": 13521, "end_sample": 13708}
+{"type": "interval", "label": "hard_negative_blink", "start_sample": 13901, "end_sample": 14151}
+{"type": "detected", "sample": 14173, "duration_s": 0.232, "label": "raise"}
+{"type": "detected", "sample": 14274, "label": "click"}
+{"type": "detected", "sample": 14516, "duration_s": 0.408, "label": "raise"}
+{"type": "interval", "label": "eyebrow_raise", "start_sample": 14416, "end_sample": 14603}
+{"type": "detected", "sample": 14617, "label": "click"}
+{"type": "interval", "label": "hard_negative_swallow", "start_sample": 14824, "end_sample": 15075}
+{"type": "detected", "sample": 15449, "duration_s": 0.176, "label": "raise"}
+{"type": "detected", "sample": 15483, "duration_s": 0.128, "label": "raise"}
+{"type": "detected", "sample": 15483, "label": "drag_toggle"}
+{"type": "interval", "label": "hard_negative_head_move", "start_sample": 15302, "end_sample": 15553}
+{"type": "detected", "sample": 15874, "duration_s": 0.368, "label": "raise"}
+{"type": "detected", "sample": 15975, "label": "click"}
+{"type": "interval", "label": "double_raise", "start_sample": 15777, "end_sample": 16027}
+{"type": "detected", "sample": 16410, "duration_s": 0.536, "label": "raise"}
+{"type": "detected", "sample": 16446, "duration_s": 0.184, "label": "raise"}
+{"type": "detected", "sample": 16446, "label": "drag_toggle"}
+{"type": "interval", "label": "double_raise", "start_sample": 16292, "end_sample": 16543}
+{"type": "detected", "sample": 16968, "duration_s": 0.664, "label": "raise"}
+{"type": "detected", "sample": 16996, "duration_s": 0.12, "label": "raise"}
+{"type": "detected", "sample": 16996, "label": "drag_toggle"}
+{"type": "interval", "label": "double_raise", "start_sample": 16822, "end_sample": 17072}
+{"type": "detected", "sample": 17410, "duration_s": 0.384, "label": "raise"}
+{"type": "detected", "sample": 17511, "label": "click"}
+{"type": "interval", "label": "double_raise", "start_sample": 17295, "end_sample": 17545}
+{"type": "detected", "sample": 17912, "duration_s": 0.36, "label": "raise"}
+{"type": "interval", "label": "eyebrow_raise", "start_sample": 17807, "end_sample": 17994}
+{"type": "detected", "sample": 18013, "label": "click"}
+{"type": "detected", "sample": 18354, "duration_s": 0.32, "label": "raise"}
+{"type": "interval", "label": "eyebrow_raise", "start_sample": 18261, "end_sample": 18448}
+{"type": "detected", "sample": 18455, "label": "click"}
+{"type": "detected", "sample": 18872, "duration_s": 0.592, "label": "raise"}
+{"type": "detected", "sample": 18899, "duration_s": 0.112, "label": "raise"}
+{"type": "detected", "sample": 18899, "label": "drag_toggle"}
+{"type": "interval", "label": "double_raise", "start_sample": 18750, "end_sample": 19000}
+{"type": "interval", "label": "hard_negative_talk", "start_sample": 19206, "end_sample": 19456}
+{"type": "detected", "sample": 19797, "duration_s": 0.096, "label": "raise"}
+{"type": "detected", "sample": 19898, "label": "click"}
+{"type": "interval", "label": "hard_negative_blink", "start_sample": 19731, "end_sample": 19983}
+{"type": "interval", "label": "hard_negative_head_move", "start_sample": 20214, "end_sample": 20465}
+{"type": "detected", "sample": 20847, "duration_s": 0.28, "label": "raise"}
+{"type": "detected", "sample": 20901, "duration_s": 0.328, "label": "raise"}
+{"type": "detected", "sample": 20901, "label": "drag_toggle"}
+{"type": "interval", "label": "eyebrow_raise", "start_sample": 20753, "end_sample": 20943}
+{"type": "detected", "sample": 21213, "duration_s": 1.36, "label": "raise"}
+{"type": "detected", "sample": 21303, "duration_s": 0.496, "label": "raise"}
+{"type": "detected", "sample": 21303, "label": "drag_toggle"}
+{"type": "detected", "sample": 21357, "duration_s": 0.328, "label": "raise"}
+{"type": "interval", "label": "double_raise", "start_sample": 21175, "end_sample": 21427}
+{"type": "detected", "sample": 21458, "label": "click"}
+{"type": "detected", "sample": 21591, "duration_s": 0.4, "label": "raise"}
+{"type": "detected", "sample": 21692, "label": "click"}
+{"type": "detected", "sample": 21733, "duration_s": 0.784, "label": "raise"}
+{"type": "interval", "label": "eyebrow_raise", "start_sample": 21640, "end_sample": 21828}
+{"type": "detected", "sample": 21834, "label": "click"}
+{"type": "detected", "sample": 22008, "duration_s": 0.096, "label": "raise"}
+{"type": "detected", "sample": 22109, "label": "click"}
+{"type": "detected", "sample": 22163, "duration_s": 0.304, "label": "raise"}
+{"type": "detected", "sample": 22193, "duration_s": 0.136, "label": "raise"}
+{"type": "detected", "sample": 22193, "label": "drag_toggle"}
+{"type": "interval", "label": "eyebrow_raise", "start_sample": 22064, "end_sample": 22251}
+{"type": "detected", "sample": 22403, "duration_s": 0.496, "label": "raise"}
+{"type": "detected", "sample": 22439, "duration_s": 0.184, "label": "raise"}
+{"type": "detected", "sample": 22439, "label": "drag_toggle"}
+{"type": "detected", "sample": 22481, "duration_s": 0.104, "label": "raise"}
+{"type": "detected", "sample": 22582, "label": "click"}
+{"type": "interval", "label": "hard_negative_head_move", "start_sample": 22494, "end_sample": 22747}
+{"type": "interval", "label": "hard_negative_talk", "start_sample": 22994, "end_sample": 23245}
+{"type": "detected", "sample": 23548, "duration_s": 0.344, "label": "raise"}
+{"type": "interval", "label": "eyebrow_raise", "start_sample": 23447, "end_sample": 23636}
+{"type": "detected", "sample": 23644, "duration_s": 0.216, "label": "raise"}
+{"type": "detected", "sample": 23644, "label": "drag_toggle"}
+{"type": "detected", "sample": 23717, "duration_s": 0.256, "label": "raise"}
+{"type": "detected", "sample": 23818, "label": "click"}
+{"type": "detected", "sample": 24023, "duration_s": 0.32, "label": "raise"}
+{"type": "detected", "sample": 24124, "label": "click"}
+{"type": "interval", "label": "eyebrow_raise", "start_sample": 23937, "end_sample": 24126}
+{"type": "interval", "label": "eyebrow_raise", "start_sample": 24321, "end_sample": 24510}
+{"type": "detected", "sample": 24543, "duration_s": 0.336, "label": "raise"}
+{"type": "detected", "sample": 24644, "label": "click"}
+{"type": "detected", "sample": 24981, "duration_s": 0.376, "label": "raise"}
+{"type": "detected", "sample": 25053, "duration_s": 0.128, "label": "raise"}
+{"type": "detected", "sample": 25053, "label": "drag_toggle"}
+{"type": "interval", "label": "hard_negative_swallow", "start_sample": 24821, "end_sample": 25074}
+{"type": "interval", "label": "neutral_end", "start_sample": 25074, "end_sample": 25825}

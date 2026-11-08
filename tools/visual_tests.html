@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>EEG Visual Tests</title>
+<style>
+  :root { --bg:#111; --fg:#eee; --muted:#999; --panel:#1c1c1c; --accent:#4da3ff; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:15px/1.45 system-ui, sans-serif; }
+  #panel { max-width:720px; margin:24px auto; padding:20px; background:var(--panel); border-radius:10px; }
+  h1 { font-size:20px; margin:0 0 4px; }
+  .warn { color:#ffb84d; font-size:13px; margin:8px 0 16px; }
+  fieldset { border:1px solid #333; border-radius:8px; margin:0 0 14px; padding:10px 14px; }
+  legend { color:var(--muted); font-size:13px; }
+  label { display:inline-flex; align-items:center; gap:6px; margin:4px 14px 4px 0; }
+  select, input[type=number] { background:#222; color:var(--fg); border:1px solid #444; border-radius:6px; padding:4px 6px; }
+  button { background:var(--accent); color:#000; border:0; border-radius:6px; padding:8px 16px; font-weight:600; cursor:pointer; }
+  .hint { color:var(--muted); font-size:13px; }
+  #stage { position:fixed; inset:0; display:none; background:#000; }
+  #stage.on { display:block; }
+  .target { position:absolute; top:50%; width:28vmin; height:28vmin; transform:translate(-50%,-50%); background:#fff; }
+  #full { inset:0; position:absolute; background:#fff; }
+  #cue { position:absolute; top:24px; left:0; right:0; text-align:center; font-size:22px; color:#888; pointer-events:none; }
+  #fix { position:absolute; left:50%; top:50%; width:10px; height:10px; margin:-5px; border-radius:50%; background:#f33; display:none; }
+  #hud { position:absolute; bottom:12px; left:12px; color:#666; font-size:12px; }
+</style>
+</head>
+<body>
+<div id="panel">
+  <h1>EEG Visual Tests</h1>
+  <div class="hint">Measured display refresh: <b id="hz">measuring…</b> Hz. Frequencies below are exact divisors of it.</div>
+  <div class="warn">⚠ Flicker between about 3 and 30 Hz can trigger seizures in people with photosensitive epilepsy. Don't run it on anyone with that history.</div>
+
+  <fieldset><legend>Test</legend>
+    <label><input type="radio" name="mode" value="full" checked> Full-screen flicker (one SSVEP frequency)</label><br>
+    <label><input type="radio" name="mode" value="two"> Two targets, left vs right (look at one, then the other)</label><br>
+    <label><input type="radio" name="mode" value="onoff"> Flicker on/off blocks (shows when the peak comes and goes)</label><br>
+    <label><input type="radio" name="mode" value="alpha"> Eyes closed / eyes open (alpha, with audio cues)</label>
+  </fieldset>
+
+  <fieldset><legend>Stimulus</legend>
+    <label>Frequency A <select id="fA"></select></label>
+    <label>Frequency B <select id="fB"></select></label><br>
+    <label>Waveform <select id="wave"><option value="square">Square (on/off)</option><option value="sine">Sine (smoother)</option></select></label>
+    <label>Contrast <input id="contrast" type="number" min="5" max="100" value="100" step="5">%</label><br>
+    <label>Block length <input id="block" type="number" min="3" max="60" value="10">s</label>
+  </fieldset>
+
+  <button id="go">Start (Esc to stop)</button>
+  <p class="hint">Tip: avoid 10 Hz when testing SSVEP, because it overlaps natural alpha. Try 7.5, 12 or 15 Hz on a 60 Hz screen.</p>
+</div>
+
+<div id="stage">
+  <div id="full"></div>
+  <div class="target" id="tA" style="left:25%"></div>
+  <div class="target" id="tB" style="left:75%"></div>
+  <div id="fix"></div>
+  <div id="cue"></div>
+  <div id="hud"></div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+let refresh = 60, running = false, raf = 0, frame = 0, t0 = 0, audio;
+
+// Measure refresh rate over ~1 s, then round to a common value.
+(function measure() {
+  let n = 0, start = 0;
+  function tick(t) {
+    if (!start) start = t;
+    n++;
+    if (t - start < 1000) return requestAnimationFrame(tick);
+    const raw = n * 1000 / (t - start);
+    refresh = [60, 72, 75, 90, 100, 120, 144, 165, 240].reduce((a, b) => Math.abs(b - raw) < Math.abs(a - raw) ? b : a);
+    $('hz').textContent = refresh + ' (raw ' + raw.toFixed(1) + ')';
+    fillFreqs();
+  }
+  requestAnimationFrame(tick);
+})();
+
+function fillFreqs() {
+  const opts = [];
+  for (let n = 2; n <= 24; n++) {
+    const f = refresh / n;
+    if (f >= 4 && f <= 45) opts.push(f);
+  }
+  for (const sel of [$('fA'), $('fB')]) {
+    sel.innerHTML = opts.map(f => `<option value="${f}">${+f.toFixed(2)} Hz</option>`).join('');
+  }
+  const pick = (sel, target) => {
+    let best = 0;
+    opts.forEach((f, i) => { if (Math.abs(f - target) < Math.abs(opts[best] - target)) best = i; });
+    sel.selectedIndex = best;
+  };
+  pick($('fA'), 12); pick($('fB'), 7.5);
+}
+
+function beep(freq) {
+  try {
+    audio = audio || new AudioContext();
+    const o = audio.createOscillator(), g = audio.createGain();
+    o.frequency.value = freq; g.gain.value = 0.15;
+    o.connect(g).connect(audio.destination);
+    o.start(); o.stop(audio.currentTime + 0.25);
+  } catch (e) {}
+}
+
+// Luminance 0..1 for frame number at frequency f.
+function lum(f, fr, wave, depth) {
+  const phase = (fr * f / refresh) % 1;
+  const on = wave === 'sine' ? 0.5 + 0.5 * Math.cos(2 * Math.PI * phase) : (phase < 0.5 ? 1 : 0);
+  return 0.5 + (on - 0.5) * depth;   // contrast around mid-grey
+}
+const grey = v => { const c = Math.round(v * 255); return `rgb(${c},${c},${c})`; };
+
+function start() {
+  const mode = document.querySelector('input[name=mode]:checked').value;
+  const fA = +$('fA').value, fB = +$('fB').value;
+  const wave = $('wave').value, depth = (+$('contrast').value) / 100, block = +$('block').value;
+  $('stage').classList.add('on');
+  $('full').style.display = (mode === 'full' || mode === 'onoff') ? 'block' : 'none';
+  $('tA').style.display = $('tB').style.display = mode === 'two' ? 'block' : 'none';
+  $('fix').style.display = mode === 'alpha' ? 'block' : 'none';
+  if (mode === 'alpha') $('full').style.background = '#000';
+  running = true; frame = 0; t0 = performance.now();
+  let lastBlock = -1;
+  document.documentElement.requestFullscreen?.().catch(() => {});
+
+  function draw(now) {
+    if (!running) return;
+    const secs = (now - t0) / 1000, b = Math.floor(secs / block), left = Math.ceil(block - (secs % block));
+    if (mode === 'full') {
+      $('full').style.background = grey(lum(fA, frame, wave, depth));
+      $('cue').textContent = '';
+    } else if (mode === 'two') {
+      $('tA').style.background = grey(lum(fA, frame, wave, depth));
+      $('tB').style.background = grey(lum(fB, frame, wave, depth));
+      $('cue').textContent = (b % 2 ? `look RIGHT (${+fB.toFixed(2)} Hz)` : `look LEFT (${+fA.toFixed(2)} Hz)`) + ` · ${left}s`;
+    } else if (mode === 'onoff') {
+      const on = b % 2 === 1;
+      $('full').style.background = on ? grey(lum(fA, frame, wave, depth)) : '#000';
+      $('cue').textContent = (on ? `FLICKER ${+fA.toFixed(2)} Hz` : 'rest (dark)') + ` · ${left}s`;
+    } else {
+      const closed = b % 2 === 1;
+      if (b !== lastBlock) beep(closed ? 440 : 880);
+      $('cue').textContent = (closed ? 'EYES CLOSED (wait for the high beep)' : 'eyes OPEN, look at the red dot') + ` · ${left}s`;
+    }
+    lastBlock = b;
+    $('hud').textContent = `block ${b + 1} · ${secs.toFixed(1)}s · ${refresh} Hz display`;
+    frame++;
+    raf = requestAnimationFrame(draw);
+  }
+  raf = requestAnimationFrame(draw);
+}
+
+function stop() {
+  running = false; cancelAnimationFrame(raf);
+  $('stage').classList.remove('on'); $('full').style.background = '#fff';
+  if (document.fullscreenElement) document.exitFullscreen();
+}
+
+$('go').onclick = start;
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && running) stop(); });
+</script>
+</body>
+</html>

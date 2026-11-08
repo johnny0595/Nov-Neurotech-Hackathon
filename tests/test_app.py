@@ -16,13 +16,13 @@ class NullSource:
 
 
 def test_snapshot_reports_double_mode():
-    assert Hub(NullSource(), 2).snapshot()["double_enabled"] is False  # Raleigh default: single raises only
-    assert Hub(NullSource(), 2, double_enabled=True).snapshot()["double_enabled"] is True
+    assert Hub(NullSource(), 2).snapshot()["double_enabled"] is True  # default: raise = walk, double raise = map
+    assert Hub(NullSource(), 2, double_enabled=False).snapshot()["double_enabled"] is False  # --single
 
 
 def test_process_gates_raises_while_the_head_turns():
     rng = np.random.default_rng(2)
-    hub = Hub(NullSource(), 2, gyro_gate=60)
+    hub = Hub(NullSource(), 2, double_enabled=False, gyro_gate=60)
 
     def batch(seconds, loud=False, turning=False):
         b = np.zeros((NUM_ROWS, int(seconds * 125)))

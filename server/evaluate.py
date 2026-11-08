@@ -3,7 +3,7 @@
 uv run python -m server.evaluate data/sessions/*                     # gate off vs default gate
 uv run python -m server.evaluate data/sessions/* --k 4 5 6 8         # sweep sensitivity
 uv run python -m server.evaluate data/sessions/* --gyro-gate 0 40 60 80 120   # tune the head-motion gate
-uv run python -m server.evaluate data/sessions/* --double            # score with double raises on
+uv run python -m server.evaluate data/sessions/* --single            # score single-raise mode (server --single)
 
 Each (session, k, gate) prints one JSON line; a summary per (k, gate) follows, with false clicks per
 minute (clicks/drag toggles outside raise prompts) and how many single raises were still caught.
@@ -91,7 +91,7 @@ def score(labels: list[dict], events: list[dict], fs: float, n_samples: int, par
     return out
 
 
-def evaluate(path: Path, k: float, gyro_gate: float | None = None, double: bool = False, gyro_units: str = "auto") -> dict:
+def evaluate(path: Path, k: float, gyro_gate: float | None = None, double: bool = True, gyro_units: str = "auto") -> dict:
     data, labels, meta = load_session(path)
     channel = int(meta.get("channel", 2))
     fs = float(meta.get("fs", 125.0))
@@ -137,14 +137,14 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--gyro-gate", type=float, nargs="+", default=[0.0, DEFAULT_GATE_DPS], metavar="DEG_S",
                         help=f"gate thresholds to compare, 0 = off (default: 0 {DEFAULT_GATE_DPS:g})")
     parser.add_argument("--gyro-units", choices=["auto", "deg_s", "rad_s"], default="auto")
-    parser.add_argument("--double", action="store_true", help="score with double raises on (the server's --double)")
+    parser.add_argument("--single", action="store_true", help="score single-raise mode (the server's --single)")
     args = parser.parse_args(argv)
     rows = []
     for k in args.k:
         for gate in args.gyro_gate:
             for path in args.sessions:
                 if (path / "raw.npz").exists():
-                    row = evaluate(path, k, gyro_gate=gate, double=args.double, gyro_units=args.gyro_units)
+                    row = evaluate(path, k, gyro_gate=gate, double=not args.single, gyro_units=args.gyro_units)
                     rows.append(row)
                     print(json.dumps(row))
     for line in summarize(rows):

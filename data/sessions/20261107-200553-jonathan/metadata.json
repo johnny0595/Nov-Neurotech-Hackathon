@@ -1,0 +1,53 @@
+{
+  "started_at": "2026-11-07T20:02:27",
+  "name": "jonathan",
+  "note": "head moving between prompts",
+  "protocol": "brow_v1",
+  "channel": 8,
+  "fs": 125,
+  "source": {
+    "port": "/dev/cu.usbserial-A5069RR4",
+    "brainflow_version": "5.23.0",
+    "nominal_rate_hz": 125,
+    "channel": 8,
+    "gain": 12
+  },
+  "detector": {
+    "params": {
+      "fs": 125,
+      "band_hz": [
+        20.0,
+        50.0
+      ],
+      "envelope_s": 0.05,
+      "k": 6.0,
+      "release": 0.6,
+      "release_of_peak": 0.2,
+      "min_s": 0.08,
+      "max_s": 1.5,
+      "double_window_s": 0.8,
+      "debounce_s": 0.1
+    },
+    "baseline": [
+      252.69289784568684,
+      98.07928912961243
+    ],
+    "threshold": 841.1686326233614
+  },
+  "aborted": false,
+  "rate": {
+    "samples": 25827,
+    "timestamp_span_s": 205.873,
+    "rate_from_timestamps_hz": 125.45,
+    "package_counter_min_max": [
+      0.0,
+      255.0
+    ],
+    "package_diff_histogram": {
+      "1": 25725,
+      "-255": 101
+    },
+    "max_timestamp_gap_ms": 15.1
+  },
+  "unclosed_labels": []
+}

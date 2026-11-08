@@ -5,9 +5,9 @@ A GeoGuessr-style game set in **Raleigh, NC**, for kids who can't use a mouse. *
 | Gesture | Effect |
 |---|---|
 | Tilt head | Look around in Street View. On the map, move the cursor. |
-| Raise eyebrows | Click: start the game, go to the map, drop a pin, or press a button (＋/－ zoom toward the map's centre) |
-| Raise eyebrows twice quickly | Only with `--double`: grab the map and move it. Raise once to let go. |
-| Look at the top-right corner for 2 s | Pause |
+| Raise eyebrows once | In Street View: walk forward along the road you're facing. On the map: drop a pin (raise again on the pin to lock in your guess) or press a button. Start/result screens: go on. |
+| Raise eyebrows twice quickly | In Street View: go to the guess map ("I know where this is!"). On the map: grab the map and move it; raise once to let go. |
+| Hold the cursor on the bottom-left **Pause** tile for 2 s | Pause |
 | Helper presses Space or Esc, or clicks the pause screen | Pause or resume |
 | Any raise while paused | Resume. The head's neutral position is reset at the same time. |
 
@@ -25,14 +25,14 @@ open http://localhost:8000/                 # the game
 ```
 
 You can work without the headset:
-- `http://localhost:8000/?mock=1`: the mouse position stands in for head tilt. Press **C** for one eyebrow raise. Add `&double=1` to make **D** a double raise (map drag), matching a server started with `--double`.
+- `http://localhost:8000/?mock=1`: the mouse position stands in for head tilt. Press **C** for one eyebrow raise, **D** for a double raise, **G** for a raise ignored because the head was moving. Holding the mouse still at the centre counts as a still head. Add `&single=1` to match a server started with `--single`.
 - `uv run python -m server.app --replay data/sessions/<dir>`: replays a recorded session in real time.
 
 ### Server flags
 
 | Flag | Default | What it does |
 |---|---|---|
-| `--double` | off | Allow double raises (grab and move the map). Off means every raise is a click, sent the moment the raise ends. There's no 0.8 s wait for a possible second raise, and the "raise twice" hint and dragging are hidden. |
+| `--single` | off | Single raises only: every raise is a click, sent the moment the raise ends (no 0.8 s wait for a possible second raise). In Street View a raise then opens the map instead of walking, and map dragging is off. By default double raises are on: a raise walks, a double raise opens the map. |
 | `--gyro-gate DEG_S` | `60` | Ignore eyebrow raises while the head turns faster than this many degrees per second, and for 150 ms afterwards. Any raise whose burst overlaps that window is dropped (it shows up as `gated_raise` on the setup page). `0` turns the gate off. 60 deg/s lets slow cursor-steering tilts through while blocking quick turns and nods. Tune it from recordings with `evaluate --gyro-gate` (below). |
 | `--gyro-units` | `auto` | Units of the board's gyro rows (`deg_s` / `rad_s`), used by the gate and head tracking. `auto` decides once: deg/s as soon as any reading tops 20, otherwise from the first second at rest. If the gate seems to fire all the time, set this explicitly. |
 | `--port`, `--channel`, `--replay`, `--http-port` | | As before. |
@@ -50,7 +50,7 @@ You can work without the headset:
 
 - **Flow:** start screen (raise to play) → 5 rounds of look → map → result → final score.
 - **Hints and facts:** on the look screen, the location's hint appears after 30 s. The result card shows stars, distance, points and a fun fact.
-- **Eyebrow meter:** the start screen shows a live meter (EMG envelope, with a line at the threshold) that flashes on every detected raise. A small copy sits in the bottom-left corner during the game.
+- **Eyebrow meter:** the start screen shows a live meter (EMG envelope, with a line at the threshold) that flashes on every detected raise. A small copy sits just above the bottom-left Pause tile during the game.
 - **Scoring:** points = 5000 × e^(−miles / 0.75). Stars: under 0.1 mi = 5, 0.3 = 4, 0.75 = 3, 1.5 = 2, else 1. Distances under 0.2 mi are shown in feet.
 - **Helper summary:** the final screen has a "Helper summary" button. It shows raises detected, clicks used, the average time from a screen appearing to the first click on it, and the number of rounds.
 - **Config:** locations live in `web/locations-raleigh.js` (`name, lat, lng, hint, fact`). Per-region settings (map view, bounds, scoring, snap radius) live in `web/regions.js`.
@@ -59,7 +59,7 @@ You can work without the headset:
 
 - **Electrodes:** one forehead electrode on **channel 2** (gain 12), with the reference on the ear clip.
 - **Sample-rate check:** `uv run python -m server.board --seconds 30`. The rate should come out close to 125 Hz. The last hackathon only got 72–79 Hz. The report goes to `data/ratecheck/`.
-- **Setup page:** follow it in order. Zero the head, check the axes, calibrate the eyebrows (stay relaxed for 8 s), then test some raises.
+- **Setup page:** follow it in order. Click **Learn my head movements** (nod, shake, look up, look right; ~25 s) so nods move only up/down and turns only left/right however the sensor is mounted. Then zero the head, calibrate the eyebrows (stay relaxed for 8 s), then test some raises.
 
 ## Collect data, then hand it to Claude
 
@@ -73,7 +73,23 @@ uv run python -m server.evaluate data/sessions/* --k 4 5 6 8
 uv run python -m server.evaluate data/sessions/* --gyro-gate 0 40 60 80 120   # tune the head-motion gate
 ```
 
-The output has one JSON line per session, `k` and gate value. Each line shows how many single raises were caught, false raises per minute, **false clicks per minute** (what the player actually feels), how many raises the gate dropped, and which hard negatives caused false clicks. Summary lines at the end pool all sessions for each `k` and gate value. Pick the gate that cuts `false_clicks_per_min` (and `fp_head_move`) without lowering `single_hit`. By default it scores the way the server runs by default: single raises only, gate off vs `--gyro-gate 60`. Add `--double` to score double raises too.
+The output has one JSON line per session, `k` and gate value. Each line shows how many single raises were caught, false raises per minute, **false clicks per minute** (what the player actually feels), how many raises the gate dropped, and which hard negatives caused false clicks. Summary lines at the end pool all sessions for each `k` and gate value. Pick the gate that cuts `false_clicks_per_min` (and `fp_head_move`) without lowering `single_hit`. By default it scores the way the server runs by default: double raises on, gate off vs `--gyro-gate 60`. Add `--single` to score single-raise mode.
+
+## Train the detector on your sessions
+
+```bash
+uv run python -m server.train data/sessions/*
+```
+
+This tries 500 detector settings: sensitivity `k`, EMG band, envelope speed, burst length limits, the double-raise window, and debounce. Each setting is replayed through the real detector on every session. The script prints three tables:
+
+- **Current defaults:** how the untuned detector does.
+- **Tuned:** the best settings, scored on the sessions they were tuned on. This is optimistic.
+- **Held-out check:** each session scored by settings tuned *without* it. **Trust this one.** It needs at least 2 sessions.
+
+The best settings are saved to `data/detector_params.json`, and the server loads them at start-up, so restart it afterwards. The `k` in `data/profile.json` is updated to match. Moving the setup-page slider still overrides `k` afterwards. Calibrate again ("relax 8 s") after training, since the threshold is set from your neutral baseline.
+
+The scoring rewards caught single raises the most. Then it rewards caught double raises (×0.5), and penalises false raises per minute (×0.25) and singles read as doubles (×0.5). Change the `W_*` weights in `server/train.py` to shift the balance. Use `--dry-run` to see results without saving.
 
 ## Google Street View key (free tier, capped at $0)
 
