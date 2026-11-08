@@ -25,7 +25,7 @@ open http://localhost:8000/                 # the game
 ```
 
 You can work without the headset:
-- `http://localhost:8000/?mock=1`: the mouse position stands in for head tilt. Press **C** for one eyebrow raise, **D** for a double raise, **G** for a raise ignored because the head was moving. Holding the mouse still at the centre counts as a still head. Add `&single=1` to match a server started with `--single`.
+- `http://localhost:8000/?mock=1`: the mouse position stands in for head tilt. Press **C** for one eyebrow raise, **D** for a double raise, **G** for a raise ignored because the head was moving. Holding the mouse still at the centre counts as a still head. **J** is a jaw clench (for the brow / jaw / either input setting). Add `&single=1` to match a server started with `--single`.
 - `uv run python -m server.app --replay data/sessions/<dir>`: replays a recorded session in real time.
 
 ### Server flags
@@ -35,6 +35,7 @@ You can work without the headset:
 | `--single` | off | Single raises only: every raise is a click, sent the moment the raise ends (no 0.8 s wait for a possible second raise). In Street View a raise then opens the map instead of walking, and map dragging is off. By default double raises are on: a raise walks, a double raise opens the map. |
 | `--gyro-gate DEG_S` | `60` | Ignore eyebrow raises while the head turns faster than this many degrees per second, and for 150 ms afterwards. Any raise whose burst overlaps that window is dropped (it shows up as `gated_raise` on the setup page). `0` turns the gate off. 60 deg/s lets slow cursor-steering tilts through while blocking quick turns and nods. Tune it from recordings with `evaluate --gyro-gate` (below). |
 | `--gyro-units` | `auto` | Units of the board's gyro rows (`deg_s` / `rad_s`), used by the gate and head tracking. `auto` decides once: deg/s as soon as any reading tops 20, otherwise from the first second at rest. If the gate seems to fire all the time, set this explicitly. |
+| `--channels BROW[,JAW]` | `--channel` | EMG channels for the click detectors, e.g. `2,3` = forehead on channel 2, jaw on channel 3. Each gets its own detector, calibrated separately on the setup page. The player's input setting (brow / jaw / either / keyboard switch) picks which ones make clicks; "either" counts an action seen on both channels within 200 ms once. |
 | `--port`, `--channel`, `--replay`, `--http-port` | | As before. |
 
 ### Page options
@@ -42,9 +43,10 @@ You can work without the headset:
 | URL | What it does |
 |---|---|
 | `/` | Raleigh mode (default): 20 kid-friendly Raleigh spots, a map locked to Wake County, scoring in miles/feet, Street View snapped within 150 m |
-| `/?region=world` | The original worldwide list, km scoring, 1 km snap |
-| `/?checklocs=1` | Dev check. Asks Street View (Maps JavaScript API) for the nearest Google-captured outdoor panorama within 150 m (user-uploaded photo spheres are skipped) of every location in the current region, then prints a console table: name, found, distance to the snapped pano. Fix or drop any row that isn't `ok`. Needs the Maps key. |
+| `/?region=nc` / `usa` / `world` | Override the profile's difficulty: North Carolina (20 places, hints and facts), the contiguous USA, or the original worldwide list |
+| `/?checklocs=1` | Dev check. Asks Street View (Maps JavaScript API) for the nearest Google-captured outdoor panorama within 150 m (user-uploaded photo spheres are skipped) of every location in the current region (using that region's snap radius), then prints a console table: name, found, distance to the snapped pano. Fix or drop any row that isn't `ok`. Needs the Maps key. |
 | `/?mock=1` | Mouse + keys instead of the headset (combine with any of the above) |
+| `/?cvd=1` | Deuteranopia (red-green colour blindness) preview, to check nothing relies on colour alone |
 
 ### Raleigh mode
 
@@ -54,6 +56,38 @@ You can work without the headset:
 - **Scoring:** points = 5000 × e^(−miles / 0.75). Stars: under 0.1 mi = 5, 0.3 = 4, 0.75 = 3, 1.5 = 2, else 1. Distances under 0.2 mi are shown in feet.
 - **Helper summary:** the final screen has a "Helper summary" button. It shows raises detected, clicks used, the average time from a screen appearing to the first click on it, and the number of rounds.
 - **Config:** locations live in `web/locations-raleigh.js` (`name, lat, lng, hint, fact`). Per-region settings (map view, bounds, scoring, snap radius) live in `web/regions.js`.
+
+## Accessibility
+
+Built for players with limited hand use (ALS, spinal cord injury, CP, stroke, MS, RSI) as well as low-vision,
+dyslexic and able-bodied players. Three principles: any one reliable input can play the whole game; nothing is
+timed unless the player turns it on; the copy is friendly but adult.
+
+Everything below is per **player profile** (setup page → Player profile; the start screen's "Player" button
+switches with one click). Each profile's EMG calibration is stored on the server in `data/profiles/<name>.json`.
+
+| Setting | Options |
+|---|---|
+| Click with | eyebrow raise, jaw clench, either (needs `--channels 2,3`), or a keyboard / physical switch (Space or Enter; the helper pauses with Esc) |
+| Timing | **Off** (default: no auto-advance, no time-based cancels, no dwell-to-pause, hint shown at once), slower, normal, faster, or custom sliders |
+| Aiming help | free, assisted (stronger magnet, bigger confirm zone, zoom in before the pin drops), or choices (pick from three named places) |
+| Where to play | Raleigh (default), North Carolina, USA, World; optional round timer (off by default) |
+| Display | follow the system / light / dark / high contrast (black, white, yellow); text size 100-200%; cursor size S / M / L |
+| Read aloud | on/off, voice, speed, volume: reads the cursor's target after it rests on it, hints, results and the final score |
+| Tone | plain (default) or playful (the original children's copy); also on the start screen |
+
+With only one kind of click (no double raise, or a switch), Street View shows **Walk / Map / Pause** tiles in
+the bottom quarter: the cursor lives in that band, and above it the head turns the camera.
+
+Check accessibility (nothing is installed in the repo; uses your Chrome):
+
+```bash
+uv run python -m server.app        # in one terminal
+npx -y -p playwright@1.49.1 -p axe-core@4.10.2 node tools/a11y_check.cjs
+```
+
+It runs axe-core (WCAG 2.1 A/AA) on the game and setup pages in light and dark mode, tabs through the setup
+page with the keyboard, and checks it reflows at 200% zoom.
 
 ## Hardware setup
 
@@ -105,11 +139,15 @@ The game works without a key, but the look screen stays blank. To add one:
 
 ```
 server/  app.py (web + /ws), board.py (BrainFlow), eyebrow.py (detector), gyrogate.py (head-motion gate),
+         merge.py (brow/jaw input merge),
          orientation.py + rows.py + ports.py (ported from the old repo),
          recording.py, evaluate.py
 web/     index.html + game.js (game), calibrate.html + calibrate.js (setup/recording),
          input.js (shared head cursor, pause, mock), meter.js (eyebrow meter),
-         regions.js (per-region config), locations-raleigh.js, locations.js (world),
+         settings.js (per-profile settings), strings.js (all text, plain/playful),
+         speech.js (read aloud), timing.js (timing presets), display.js (theme, text size),
+         regions.js (per-region config), locations-raleigh.js, locations-nc.js,
+         locations-usa.js, locations.js (world),
          checklocs.js (?checklocs=1)
 tests/   uv run pytest
 ```
