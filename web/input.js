@@ -5,7 +5,10 @@ import { lockLookbackMs, positionAt } from "./pointer.js";
 // Mock (?mock=1): mouse position stands in for head tilt, C = eyebrow click (a 0.3 s raise), D = double raise.
 // Like the server (without --double), mock is single-raise-only; add &double=1 to make D drag the map.
 
-const DEFAULTS = { xAxis: "roll", yAxis: "pitch", invertX: false, invertY: false, deadzone: 3, speed: 60, maxSpeed: 1100, lookSpeed: 7 };
+const DEFAULTS = {
+  xAxis: "roll", yAxis: "pitch", invertX: false, invertY: false, deadzone: 3, speed: 60, maxSpeed: 1100, lookSpeed: 7,
+  range: null, // comfortable tilt per direction in degrees, from calibrate.html: { left, right, down, up }
+};
 
 function readStored() {
   try { return JSON.parse(localStorage.getItem("brow-settings")) || {}; } catch { return {}; }

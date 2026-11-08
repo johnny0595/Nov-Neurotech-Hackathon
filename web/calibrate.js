@@ -14,6 +14,7 @@ const api = connect({
       $("rate").className = `pill ${s.rate_hz > 110 ? "good" : "bad"}`;
     }
     const [x, y] = headXY(s);
+    lastXY = [x, y];
     const clamp = (v) => Math.max(-48, Math.min(48, v));
     $("dot").style.translate = `${clamp(x * 2.5)}% ${clamp(y * 2.5) * 3}%`;
     $("angles").textContent = `roll ${fmt(s.roll)}  pitch ${fmt(s.pitch)}  yaw ${fmt(s.yaw)}  →  x ${fmt(x)}  y ${fmt(y)}`;
@@ -39,6 +40,7 @@ const api = connect({
   },
 });
 const fmt = (v) => (v ?? 0).toFixed(1).padStart(6);
+let lastXY = [0, 0]; // latest head tilt (x right, y down), for the range step
 
 // ---------- head settings ----------
 for (const id of ["xAxis", "yAxis", "invertX", "invertY", "speed", "deadzone", "lookSpeed"]) {
@@ -51,6 +53,84 @@ for (const id of ["xAxis", "yAxis", "invertX", "invertY", "speed", "deadzone", "
   };
 }
 $("zero").onclick = () => api.send({ cmd: "zero" });
+
+// ---------- comfortable range (per-direction cursor gains) ----------
+// Each extreme is the median tilt over a 2 s hold. The hold only counts while the head is clearly
+// tilted that way, and restarts if it drops back, so a quick wobble doesn't set the range.
+const RANGE_STEPS = [
+  ["left", "←", "Tilt LEFT as far as is comfortable", ([x]) => -x],
+  ["right", "→", "Tilt RIGHT as far as is comfortable", ([x]) => x],
+  ["down", "↓", "Tilt DOWN as far as is comfortable", ([, y]) => y],
+  ["up", "↑", "Now tilt UP, just a little", ([, y]) => -y],
+];
+const HOLD_MS = 2000;
+const MIN_RANGE = { left: 3, right: 3, down: 3, up: 2 };
+let rangeRunning = false;
+
+function showRange() {
+  for (const [dir] of RANGE_STEPS) $(`range-${dir}`).textContent = settings.range ? `${settings.range[dir].toFixed(1)}°` : "–";
+  if (!rangeRunning) {
+    $("range-prompt").textContent = settings.range
+      ? "Calibrated. Comfortable tilt reaches the screen edge."
+      : "Not calibrated: the cursor uses the speed slider.";
+    $("range-arrow").textContent = "↔";
+    $("range-ring").style.setProperty("--p", settings.range ? 1 : 0);
+  }
+}
+
+async function holdExtreme(arrow, text, along) {
+  $("range-arrow").textContent = arrow;
+  $("range-prompt").textContent = `${text}… and hold`;
+  const enough = Math.max(settings.deadzone + 1.5, 2.5); // clearly tilted, not just jitter
+  let start = null;
+  let samples = [];
+  while (rangeRunning) {
+    const v = along(lastXY);
+    const now = performance.now();
+    if (v >= enough) {
+      start ??= now;
+      samples.push(v);
+    } else { start = null; samples = []; }
+    const p = start === null ? 0 : Math.min(1, (now - start) / HOLD_MS);
+    $("range-ring").style.setProperty("--p", p);
+    if (p >= 1) {
+      beep(880, 120);
+      const sorted = samples.sort((a, b) => a - b);
+      return sorted[Math.floor(sorted.length / 2)];
+    }
+    await sleep(1000 / 30);
+  }
+  return null;
+}
+
+$("range-start").onclick = async () => {
+  if (rangeRunning) { rangeRunning = false; return; } // second press cancels
+  rangeRunning = true;
+  $("range-start").textContent = "Cancel";
+  const range = {};
+  for (const [dir, arrow, text, along] of RANGE_STEPS) {
+    const value = await holdExtreme(arrow, text, along);
+    if (value === null) break;
+    range[dir] = Math.max(MIN_RANGE[dir], value);
+    $(`range-${dir}`).textContent = `${range[dir].toFixed(1)}°`;
+    $("range-prompt").textContent = "Back to the middle…";
+    await sleep(900);
+  }
+  if (rangeRunning && Object.keys(range).length === 4) {
+    settings.range = range;
+    saveSettings();
+  }
+  rangeRunning = false;
+  $("range-start").textContent = "Calibrate range";
+  showRange();
+};
+$("range-reset").onclick = () => {
+  rangeRunning = false;
+  settings.range = null;
+  saveSettings();
+  showRange();
+};
+showRange();
 
 // ---------- eyebrow calibration ----------
 $("k").oninput = () => { $("kval").textContent = $("k").value; api.send({ cmd: "set_k", k: Number($("k").value) }); };

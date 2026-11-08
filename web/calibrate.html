@@ -39,6 +39,25 @@
     </section>
 
     <section class="panel">
+      <h2>1b · Comfortable range</h2>
+      <p class="muted">After <b>Zero</b>: tilt as far as is comfortable, <b>left, right, down, then up a little</b>, and hold each for 2 s. The cursor then reaches the screen edge at that tilt, so small neck movements are enough.</p>
+      <div class="range-step">
+        <div id="range-ring" class="range-ring" style="--p: 0"><span id="range-arrow">↔</span></div>
+        <div>
+          <p id="range-prompt" class="range-prompt">Not calibrated: the cursor uses the speed slider.</p>
+          <div class="row">
+            <button id="range-start">Calibrate range</button>
+            <button id="range-reset">Reset</button>
+          </div>
+        </div>
+      </div>
+      <table class="range-values">
+        <tr><th>Left</th><th>Right</th><th>Down</th><th>Up</th></tr>
+        <tr><td id="range-left">–</td><td id="range-right">–</td><td id="range-down">–</td><td id="range-up">–</td></tr>
+      </table>
+    </section>
+
+    <section class="panel">
       <h2>2 · Eyebrows</h2>
       <p class="muted">Press <b>Calibrate</b> and stay relaxed for 8 s. Then raise your eyebrows: the bar should cross the line, and each raise appears below.</p>
       <div class="meter"><div id="env"></div><div id="thr"></div></div>

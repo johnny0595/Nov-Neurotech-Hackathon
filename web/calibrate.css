@@ -33,3 +33,16 @@ body.setup { overflow: auto; font-size: 18px; }
 .progress { width: min(800px, 90vw); height: 18px; margin: 0 auto; border-radius: 9px; background: rgba(127,127,127,.25); overflow: hidden; }
 #prompt-bar { height: 100%; width: 0; background: var(--ink); }
 #abort { justify-self: center; }
+
+.range-step { display: flex; gap: 20px; align-items: center; }
+.range-ring {
+  flex: none; width: 120px; height: 120px; border-radius: 50%; display: grid; place-items: center;
+  background: conic-gradient(var(--teal) calc(var(--p) * 360deg), rgba(127,127,127,.25) 0);
+  font-size: 52px; font-weight: 800; position: relative;
+}
+.range-ring::before { content: ""; position: absolute; inset: 14px; border-radius: 50%; background: var(--card); }
+.range-ring span { position: relative; }
+.range-prompt { font-size: 22px; font-weight: 700; margin: 0 0 6px; }
+.range-values { width: 100%; border-collapse: collapse; margin-top: 12px; text-align: center; font-weight: 700; }
+.range-values th { color: var(--muted); font-weight: 700; }
+.range-values td { font-size: 24px; }

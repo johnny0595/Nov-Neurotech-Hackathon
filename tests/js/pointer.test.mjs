@@ -19,6 +19,13 @@ test("positionAt returns where the cursor was before the raise began", () => {
   assert.equal(P.positionAt([], 10), null);
 });
 
+test("range gains: comfortable tilt reaches the edge, a small up range still reaches the top", () => {
+  const g = P.gainsFromRange({ left: 10, right: 20, down: 12, up: 4 }, 1600, 900);
+  assert.equal(g.left, 80); assert.equal(g.right, 40);
+  assert.equal(g.down, 37.5); assert.equal(g.up, 112.5);
+  assert.equal(P.gainsFromRange(null, 1600, 900), null);
+});
+
 let failed = 0;
 for (const [name, fn] of tests) {
   try { fn(); console.log(`ok   ${name}`); } catch (err) { failed++; console.log(`FAIL ${name}\n     ${err.message}`); }

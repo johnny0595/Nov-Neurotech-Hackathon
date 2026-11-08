@@ -14,3 +14,14 @@ export function positionAt(history, t) {
   for (let i = history.length - 1; i >= 0; i--) if (history[i].t <= t) return history[i];
   return history[0] ?? null;
 }
+
+// ---------- comfortable range -> per-direction gains ----------
+/** Pixels per degree for each direction, so a comfortable max tilt reaches the screen edge. null if uncalibrated. */
+export function gainsFromRange(range, width, height) {
+  if (!range) return null;
+  const per = (half, deg) => half / Math.max(deg, 0.5);
+  return {
+    left: per(width / 2, range.left), right: per(width / 2, range.right),
+    up: per(height / 2, range.up), down: per(height / 2, range.down),
+  };
+}
