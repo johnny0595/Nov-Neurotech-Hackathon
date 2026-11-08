@@ -24,6 +24,14 @@
       <div class="row">
         <label>Tone of the game's text <select id="tone"><option value="plain">Plain (for everyone)</option><option value="playful">Playful (for children)</option></select></label>
       </div>
+      <fieldset class="row">
+        <legend>Read aloud</legend>
+        <label><input type="checkbox" id="speechOn"> Read labels, hints and results aloud</label>
+        <label>Voice <select id="speechVoice"><option value="">System default</option></select></label>
+        <label>Speed <input type="range" id="speechRate" min="0.5" max="2" step="0.1"> <span id="speechRate-val"></span></label>
+        <label>Volume <input type="range" id="speechVolume" min="0" max="1" step="0.1"> <span id="speechVolume-val"></span></label>
+        <button id="speechTest" type="button">Test voice</button>
+      </fieldset>
     </section>
 
     <section class="panel">

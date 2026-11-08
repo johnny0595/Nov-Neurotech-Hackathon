@@ -1,4 +1,5 @@
 import { beep, connect, headXY, mock, saveSettings, settings } from "./input.js";
+import { speak, voices } from "./speech.js";
 import { t } from "./strings.js";
 
 const $ = (id) => document.getElementById(id);
@@ -56,8 +57,22 @@ const api = connect({
 const fmt = (v) => (v ?? 0).toFixed(1).padStart(6);
 let lastXY = [0, 0]; // latest head tilt (x right, y down), for the range step
 
+// ---------- read-aloud voices (the list can arrive after page load) ----------
+function fillVoices() {
+  const select = $("speechVoice");
+  const names = new Set([...select.options].map((o) => o.value));
+  for (const v of voices()) {
+    if (names.has(v.name)) continue;
+    select.add(new Option(`${v.name} (${v.lang})`, v.name));
+  }
+  select.value = settings.speechVoice;
+}
+fillVoices();
+globalThis.speechSynthesis?.addEventListener?.("voiceschanged", fillVoices);
+$("speechTest").onclick = () => speak(t("setup.speech.test"), { force: true });
+
 // ---------- head settings ----------
-for (const id of ["xAxis", "yAxis", "invertX", "invertY", "speed", "deadzone", "lookSpeed", "cursorMode", "oneEuroMinCutoff", "oneEuroBeta", "magnet", "tone"]) {
+for (const id of ["xAxis", "yAxis", "invertX", "invertY", "speed", "deadzone", "lookSpeed", "cursorMode", "oneEuroMinCutoff", "oneEuroBeta", "magnet", "tone", "speechOn", "speechVoice", "speechRate", "speechVolume"]) {
   const el = $(id);
   const key = el.type === "checkbox" ? "checked" : "value";
   const out = $(`${id}-val`);

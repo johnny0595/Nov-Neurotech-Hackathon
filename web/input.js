@@ -110,7 +110,7 @@ export const NO_CLICK_TOP = 0.12; // top 12% of the screen: looking up makes peo
  * Head clicks in the top 12% of the screen are ignored (looking up causes involuntary raises).
  * Resuming recenters the cursor and re-zeros the head's neutral pose.
  */
-export function createCursor({ api, onClick = () => {}, onDrag = () => {}, onPauseChange = () => {}, labelAt = () => "" }) {
+export function createCursor({ api, onClick = () => {}, onDrag = () => {}, onPauseChange = () => {}, labelAt = () => "", onHoverLabel = () => {} }) {
   const el = document.createElement("div");
   el.className = "head-cursor";
   const corner = document.createElement("div");
@@ -140,6 +140,9 @@ export function createCursor({ api, onClick = () => {}, onDrag = () => {}, onPau
   let dragEnabled = true; // false when the server runs single-raise-only (no --double)
   let dwellStart = null;
   let last = performance.now();
+  let labelText = ""; // for read-aloud: the label, since when it's been shown, and whether it's been reported
+  let labelSince = 0;
+  let labelReported = false;
   const smoothX = new OneEuro();
   const smoothY = new OneEuro();
   // Click lock: raising the eyebrows nudges the head (and so the cursor) up, so a click is hit-tested
@@ -247,6 +250,8 @@ export function createCursor({ api, onClick = () => {}, onDrag = () => {}, onPau
       const text = button ? (button.disabled ? "" : button.dataset.raiseLabel ?? "") : under ? labelAt(c.sx, c.sy, under) : "";
       if (label.textContent !== text) label.textContent = text;
       label.classList.toggle("hidden", !text);
+      if (text !== labelText) { labelText = text; labelSince = now; labelReported = false; }
+      else if (text && !labelReported && now - labelSince >= settings.speechHoverMs) { labelReported = true; onHoverLabel(text); }
       label.style.transform = `translate(${c.sx}px, ${c.sy + 50}px)`;
 
       const r = corner.getBoundingClientRect();
@@ -256,7 +261,7 @@ export function createCursor({ api, onClick = () => {}, onDrag = () => {}, onPau
       corner.style.setProperty("--p", progress);
       if (progress >= 1) setPaused(true);
     } else if (hovered) { hovered.classList.remove("head-hover"); hovered = null; }
-    if (!active) label.classList.add("hidden");
+    if (!active) { label.classList.add("hidden"); labelText = ""; }
     el.style.translate = `${c.sx}px ${c.sy}px`; // not transform: the click "pop" animates scale, which would scale the offset
     el.classList.toggle("hidden", !active);
     el.classList.toggle("dragging", c.dragging);

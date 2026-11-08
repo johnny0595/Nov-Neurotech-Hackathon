@@ -1,6 +1,7 @@
 import { beep, connect, createCursor, deadzone, headXY, saveSettings, settings } from "./input.js";
 import { createMeter } from "./meter.js";
 import { currentRegion, panoRequest } from "./regions.js";
+import { speak } from "./speech.js";
 import { applyStrings, t } from "./strings.js";
 
 const ROUNDS = 5;
@@ -101,6 +102,9 @@ const cursor = createCursor({
     if (armed?.kind === "pin") return t(pinDistance(x, y) <= CONFIRM_PX ? "guess.confirm.label" : "guess.movePin");
     return t("guess.dropPin");
   },
+  onHoverLabel(text) {
+    speak(text);
+  },
   onPauseChange(paused) {
     if (!paused && stats.shownAt !== null) stats.shownAt = performance.now(); // time spent paused doesn't count
   },
@@ -194,6 +198,8 @@ function refreshText() {
   if (!$("look-hint").classList.contains("notice")) $("look-hint").innerHTML = lookHintHtml();
   if (!armed) resetSubmitButton();
   $("round").textContent = t("top.round", { n: Math.max(1, game.round), total: ROUNDS });
+  $("speech").textContent = t("start.speech", { state: t(settings.speechOn ? "on" : "off") });
+  $("speech").setAttribute("aria-pressed", String(Boolean(settings.speechOn)));
   $("score").textContent = t("top.points", { points: game.total.toLocaleString() });
 }
 addEventListener("settings-changed", refreshText);
@@ -235,6 +241,11 @@ async function startGame() {
 }
 
 $("play").onclick = startGame;
+$("speech").onclick = () => {
+  settings.speechOn = !settings.speechOn;
+  saveSettings();
+  speak(t("start.speech", { state: t(settings.speechOn ? "on" : "off") }), { force: true }); // confirm either way
+};
 $("tone").onclick = () => {
   settings.tone = settings.tone === "playful" ? "plain" : "playful";
   saveSettings(); // fires settings-changed, which re-renders every string
@@ -245,6 +256,7 @@ const angleBetween = (a, b) => Math.abs(((a - b + 540) % 360) - 180);
 const MAX_WALK_ANGLE = 40; // the road must be on screen, roughly where you're looking
 let hintTimer = null;
 function flashHint(html) {
+  speak(html);
   const hint = $("look-hint");
   hint.innerHTML = html;
   hint.classList.add("notice");
@@ -326,6 +338,7 @@ function submitGuess() {
   resultSeconds = 0;
   $("score").textContent = t("top.points", { points: game.total.toLocaleString() });
   show("result");
+  speak(t("say.result", { place: game.answer.name, distance: region.formatDistance(meters), points: points.toLocaleString(), fact: game.answer.fact ?? "" }));
 
   // Fit guess + answer into the map area above the result card (measured, so small screens work too).
   const cardTop = $("result").querySelector(".card").getBoundingClientRect().top;
@@ -358,6 +371,7 @@ function showFinal() {
   $("helper-panel").hidden = true;
   $("helper-toggle").setAttribute("aria-expanded", "false");
   show("final");
+  speak(t("say.final", { points: game.total.toLocaleString() }));
 }
 
 // ---------- rounds + Street View ----------
@@ -458,7 +472,10 @@ function steer(now) {
   autoZero(now);
   if (game.mode === "look" && !cursor.paused) {
     game.lookSeconds += Math.min(1, elapsed); // real time, even when frames are slow
-    if (game.answer?.hint && game.lookSeconds >= HINT_AFTER_S) $("loc-hint").hidden = false;
+    if (game.answer?.hint && game.lookSeconds >= HINT_AFTER_S && $("loc-hint").hidden) {
+      $("loc-hint").hidden = false;
+      speak(t("say.hint", { hint: game.answer.hint }));
+    }
     const [x, y] = headXY(head);
     const dx = deadzone(x, settings.deadzone);
     const dy = deadzone(y, settings.deadzone);

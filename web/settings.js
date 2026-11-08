@@ -13,6 +13,12 @@ export const DEFAULTS = {
   magnet: 0.6, // pull toward a button within 80 px: 0 = off, 1 = snap to its centre
   // copy
   tone: "plain", // "plain" (default, for everyone) | "playful" (the original kid-style copy)
+  // read-aloud (speech.js)
+  speechOn: false,
+  speechRate: 1,
+  speechVolume: 1,
+  speechVoice: "", // "" = the system default voice
+  speechHoverMs: 500, // read the cursor's label after it rests on the same target this long
 };
 
 function readStored() {

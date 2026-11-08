@@ -14,6 +14,10 @@ const S = {
   "start.play.label": "Play",
   "start.tone": { plain: "Tone: plain", playful: "Tone: playful" },
   "start.tone.label": "Switch tone",
+  "start.speech": { plain: "Read aloud: {state}", playful: "🔊 Read aloud: {state}" },
+  "start.speech.label": "Turn reading aloud on or off",
+  "on": "on",
+  "off": "off",
 
   // ---------- eyebrow meter ----------
   "meter.ready": { plain: "{Act} past the line", playful: "Lift your eyebrows past the line" },
@@ -76,6 +80,10 @@ const S = {
   "result.next": "Next ▶",
   "result.next.label": "Next",
   "result.seeScore": { plain: "See score ▶", playful: "See my score ▶" },
+  "say.result": "It was {place}. {distance} away. {points} points. {fact}",
+  "say.final": "Final score: {points} points.",
+  "say.hint": "Hint: {hint}",
+  "setup.speech.test": "This is how the game will read aloud.",
 
   // ---------- final ----------
   "final.score": { plain: "{points} points", playful: "{points} points!" },
