@@ -13,7 +13,7 @@
 <body class="setup">
   <header>
     <h1>Setup &amp; data recording</h1>
-    <span id="conn" class="pill">connecting…</span>
+    <span id="conn" class="pill" role="status" aria-live="polite" aria-label="Connection">connecting…</span>
     <span id="rate" class="pill"></span>
     <a class="pill link" href="./">▶ Play game</a>
   </header>
@@ -102,7 +102,7 @@
     <section class="panel">
       <h2>1 · Head</h2>
       <p class="muted">Put the headset on the way you'll play, press <b>Calibrate head</b> and follow the big prompts (~30 s). It learns how <i>your</i> nod and head-turn look to the sensor and how much it drifts. Redo it whenever the headset shifts on your head.</p>
-      <div class="pad"><div id="dot"></div></div>
+      <div class="pad" aria-hidden="true"><div id="dot"></div></div>
       <div class="row">
         <button id="learnAxes" class="go">🎯 Calibrate head (~30 s)</button>
         <button id="zero">Re-center (look straight)</button>
@@ -114,7 +114,7 @@
         <label>Magnetic buttons <input type="range" id="magnet" min="0" max="1" step="0.1"> <span id="magnet-val"></span></label>
       </div>
       <p class="muted small-note">Point mode needs step 1b; until then the cursor works like a joystick. Smoothing: lower = steadier when still. Speed boost: higher = less lag on quick moves.</p>
-      <p id="axesStatus" class="muted"></p>
+      <p id="axesStatus" class="muted" role="status" aria-live="polite"></p>
       <details class="advanced">
         <summary>Advanced</summary>
         <div class="row">
@@ -129,7 +129,7 @@
           <label>Dead zone ° <input type="range" id="deadzone" min="0.5" max="8" step="0.5"></label>
           <label>Look speed <input type="range" id="lookSpeed" min="2" max="15" step="1"></label>
         </div>
-        <pre id="angles" class="mono"></pre>
+        <pre id="angles" class="mono" aria-hidden="true"></pre>
       </details>
     </section>
 
@@ -137,9 +137,9 @@
       <h2>1b · Comfortable range</h2>
       <p class="muted">After <b>Calibrate head</b> (or <b>Re-center</b>): tilt as far as is comfortable, <b>left, right, down, then up a little</b>, and hold each for 2 s. The cursor then reaches the screen edge at that tilt, so small neck movements are enough.</p>
       <div class="range-step">
-        <div id="range-ring" class="range-ring" style="--p: 0"><span id="range-arrow">↔</span></div>
+        <div id="range-ring" class="range-ring" style="--p: 0" aria-hidden="true"><span id="range-arrow">↔</span></div>
         <div>
-          <p id="range-prompt" class="range-prompt">Not calibrated: the cursor uses the speed slider.</p>
+          <p id="range-prompt" class="range-prompt" role="status" aria-live="polite">Not calibrated: the cursor uses the speed slider.</p>
           <div class="row">
             <button id="range-start">Calibrate range</button>
             <button id="range-reset">Reset</button>
@@ -147,7 +147,8 @@
         </div>
       </div>
       <table class="range-values">
-        <tr><th>Left</th><th>Right</th><th>Down</th><th>Up</th></tr>
+        <caption class="visually-hidden">Comfortable tilt in degrees</caption>
+        <tr><th scope="col">Left</th><th scope="col">Right</th><th scope="col">Down</th><th scope="col">Up</th></tr>
         <tr><td id="range-left">–</td><td id="range-right">–</td><td id="range-down">–</td><td id="range-up">–</td></tr>
       </table>
     </section>
@@ -155,7 +156,7 @@
     <section class="panel">
       <h2>2 · Eyebrows</h2>
       <p class="muted">Press <b>Calibrate</b> and stay relaxed for 8 s. Then raise your eyebrows: the bar should cross the line, and each raise appears below.</p>
-      <div class="meter"><div id="env"></div><div id="thr"></div></div>
+      <div class="meter" id="browMeter" role="meter" aria-label="Eyebrow signal" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div id="env"></div><div id="thr"></div></div>
       <div class="row">
         <button id="calibrate">Calibrate (relax 8 s)</button>
         <label>Sensitivity <input type="range" id="k" min="2" max="20" step="0.5"> <span id="kval"></span></label>
@@ -163,13 +164,13 @@
       <div id="jawBlock" hidden>
         <h3>Jaw</h3>
         <p class="muted">Press <b>Calibrate jaw</b> and keep your jaw relaxed for 8 s. Then clench briefly: the bar should cross the line.</p>
-        <div class="meter"><div id="env-jaw"></div><div id="thr-jaw" class="thr"></div></div>
+        <div class="meter" id="jawMeter" role="meter" aria-label="Jaw signal" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div id="env-jaw"></div><div id="thr-jaw" class="thr"></div></div>
         <div class="row">
           <button id="calibrate-jaw">Calibrate jaw (relax 8 s)</button>
           <label>Jaw sensitivity <input type="range" id="k-jaw" min="2" max="20" step="0.5"> <span id="kval-jaw"></span></label>
         </div>
       </div>
-      <ol id="log" class="log"></ol>
+      <ol id="log" class="log" role="log" aria-live="off" aria-label="Detected events"></ol>
     </section>
 
     <section class="panel wide">
@@ -180,15 +181,15 @@
         <label>Style <select id="note"><option>normal</option><option>light raises</option><option>strong raises</option><option>head moving between prompts</option></select></label>
         <button id="record" class="go">● Start session</button>
       </div>
-      <p id="saved" class="muted"></p>
+      <p id="saved" class="muted" role="status" aria-live="polite"></p>
     </section>
   </main>
 
-  <div id="prompt" class="prompt" hidden>
-    <div id="prompt-text"></div>
-    <div class="progress"><div id="prompt-bar"></div></div>
+  <div id="prompt" class="prompt" role="dialog" aria-modal="true" aria-labelledby="prompt-text" hidden>
+    <div id="prompt-text" aria-live="assertive"></div>
+    <div class="progress" aria-hidden="true"><div id="prompt-bar"></div></div>
     <div id="prompt-count" class="muted"></div>
-    <button id="abort">Abort session</button>
+    <button id="abort">Abort session <small>(Esc)</small></button>
   </div>
 
   <script type="module" src="calibrate.js"></script>

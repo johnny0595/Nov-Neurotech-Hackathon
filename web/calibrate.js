@@ -36,7 +36,9 @@ const api = connect({
     if (jaw) {
       maxJawSeen = Math.max(maxJawSeen * 0.999, jaw.envelope);
       const full = jaw.threshold ? jaw.threshold * 2 : maxJawSeen * 1.2;
-      $("env-jaw").style.width = `${Math.min(100, (jaw.envelope / full) * 100)}%`;
+      const jawPct = Math.min(100, (jaw.envelope / full) * 100);
+      $("env-jaw").style.width = `${jawPct}%`;
+      $("jawMeter").setAttribute("aria-valuenow", String(Math.round(jawPct)));
       $("thr-jaw").hidden = !jaw.threshold;
       if (document.activeElement !== $("k-jaw") && jaw.k) { $("k-jaw").value = jaw.k; $("kval-jaw").textContent = jaw.k; }
     }
@@ -44,7 +46,9 @@ const api = connect({
     if (brow.envelope !== undefined && s.envelope !== undefined) {
       maxEnvSeen = Math.max(maxEnvSeen * 0.999, brow.envelope);
       const full = brow.threshold ? brow.threshold * 2 : maxEnvSeen * 1.2;
-      $("env").style.width = `${Math.min(100, (brow.envelope / full) * 100)}%`;
+      const pct = Math.min(100, (brow.envelope / full) * 100);
+      $("env").style.width = `${pct}%`;
+      $("browMeter").setAttribute("aria-valuenow", String(Math.round(pct)));
       $("thr").hidden = !brow.threshold;
       if (document.activeElement !== $("k") && brow.k) { $("k").value = brow.k; $("kval").textContent = brow.k; }
     }
@@ -277,7 +281,7 @@ $("learnAxes").onclick = async () => {
   const count = (n) => { $("prompt-count").textContent = t("setup.axes.step", { n, total: steps }); };
   $("learnAxes").disabled = true;
   $("abort").hidden = true;
-  $("prompt").hidden = false;
+  openPrompt();
   delete $("axesStatus").dataset.sticky;
   $("axesStatus").textContent = t("setup.axes.running");
   phase("begin");
@@ -330,6 +334,15 @@ const TRIALS = [
 ];
 let aborted = false;
 
+// The full-screen prompt is a dialog: keyboard focus goes to its button, Esc aborts it.
+function openPrompt() {
+  $("prompt").hidden = false;
+  $("abort").focus();
+}
+addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && !$("prompt").hidden && !$("abort").hidden) $("abort").click();
+});
+
 async function step(text, seconds, kind = "") {
   $("prompt-text").innerHTML = text;
   $("prompt-text").className = kind;
@@ -343,7 +356,7 @@ async function step(text, seconds, kind = "") {
 $("record").onclick = async () => {
   aborted = false;
   const trials = [...TRIALS].sort(() => Math.random() - 0.5);
-  $("prompt").hidden = false;
+  openPrompt();
   api.send({ cmd: "record_start", name: $("name").value, note: $("note").value, protocol: "brow_v1" });
   await step(t("setup.rec.ready"), 3);
   api.send({ cmd: "calibrate_start" }); // also labels this window "neutral"
@@ -363,9 +376,11 @@ $("record").onclick = async () => {
   api.send({ cmd: "mark", label: "neutral_end", edge: "end" });
   api.send({ cmd: "record_stop" });
   $("prompt").hidden = true;
+  $("record").focus();
 };
 $("abort").onclick = () => {
   aborted = true;
   api.send({ cmd: "record_stop", aborted: true });
   $("prompt").hidden = true;
+  $("record").focus();
 };
