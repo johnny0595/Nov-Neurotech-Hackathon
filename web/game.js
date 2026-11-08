@@ -146,7 +146,7 @@ function frame(now) {
   if (pano && !cursor.paused) {
     const [x, y] = headXY(head);
     state.pov.heading = (state.pov.heading + deadzone(x, settings.deadzone) * settings.lookSpeed * dt + 360) % 360;
-    state.pov.pitch = Math.max(-35, Math.min(35, state.pov.pitch - (settings.invertLookY ? -1 : 1) * deadzone(y, settings.deadzone) * settings.lookSpeed * 0.5 * dt));
+    state.pov.pitch = Math.max(-35, Math.min(35, state.pov.pitch - deadzone(y, settings.deadzone) * settings.lookSpeed * 0.5 * dt));
     pano.setPov(state.pov);
   }
   drawWalkMarker();

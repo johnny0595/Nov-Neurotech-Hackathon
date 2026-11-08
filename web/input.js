@@ -2,8 +2,7 @@
 // Live: head angles and eyebrow events stream from the Python server over /ws.
 // Mock (?mock=1): mouse position stands in for head tilt, C = eyebrow click, D = double raise.
 
-const DEFAULTS = { xAxis: "roll", yAxis: "pitch", invertX: false, invertY: false, deadzone: 3, speed: 60, maxSpeed: 1100, lookSpeed: 7,
-  invertLookY: true }; // explorer: tilting up looks up in Street View (flipped by default for the demo)
+const DEFAULTS = { xAxis: "roll", yAxis: "pitch", invertX: false, invertY: false, deadzone: 3, speed: 60, maxSpeed: 1100, lookSpeed: 7 };
 
 function readStored() {
   try { return JSON.parse(localStorage.getItem("brow-settings")) || {}; } catch { return {}; }
