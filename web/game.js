@@ -9,6 +9,9 @@ const HINT_AFTER_S = 30;
 // ignores the upward nudge a raise itself gives the head.
 const CONFIRM_PX = 60;
 const CANCEL_MS = 700;
+const RESULT_AUTO_S = 6; // the result screen moves on by itself (a raise skips the wait): fewer raises per round
+const STILL_ZERO_MS = 3000; // auto re-zero after this long still and centred on a screen with nothing to do
+const STILL_DPS = 5;
 const $ = (id) => document.getElementById(id);
 const region = currentRegion();
 const params = new URLSearchParams(location.search);
@@ -19,7 +22,10 @@ const game = {
 };
 // Helper summary counters (front-end only). shownAt: when the current screen appeared, cleared by the
 // first click on it, so "time to click" is measured once per screen.
-const stats = { raises: 0, gated: 0, clicks: 0, clickTimes: [], rounds: 0, shownAt: null };
+const stats = { raises: 0, gated: 0, clicks: 0, clickTimes: [], rounds: 0, autoZeros: 0, shownAt: null };
+let resultSeconds = 0;
+let stillSince = null;
+let zeroedWhileStill = false;
 let pano = null;
 let svService = null;
 let guessMarker = null;
@@ -60,6 +66,8 @@ const api = connect({
       if (e.type === "click") startGame();
       return;
     }
+    // RESULT: there's only "Next", so any raise skips the countdown, wherever the cursor is.
+    if (game.mode === "result" && !cursor.paused && e.type === "click") return $("next").click();
     // LOOK: the head steers the camera, so a single raise just means "go to the map".
     // There is nothing to drag there, so a double raise is ignored (it used to leave dragging = true).
     if (game.mode === "look" && !cursor.paused) {
@@ -197,7 +205,7 @@ async function startGame() {
   if (cursor.paused) cursor.resume(); // re-zeroes the head's neutral pose
   game.round = 0;
   game.total = 0;
-  Object.assign(stats, { raises: 0, gated: 0, clicks: 0, clickTimes: [], rounds: 0, shownAt: null });
+  Object.assign(stats, { raises: 0, gated: 0, clicks: 0, clickTimes: [], rounds: 0, autoZeros: 0, shownAt: null });
   $("score").textContent = "0 points";
   $("helper-panel").hidden = true;
   await newRound();
@@ -235,7 +243,8 @@ function submitGuess() {
   $("result-points").textContent = `+${points.toLocaleString()}`;
   $("result-fact").textContent = game.answer.fact ?? "";
   $("result-fact").hidden = !game.answer.fact;
-  $("next").textContent = game.round >= ROUNDS ? "See my score ▶" : "Next ▶";
+  $("next-text").textContent = game.round >= ROUNDS ? "See my score ▶" : "Next ▶";
+  resultSeconds = 0;
   $("score").textContent = `${game.total.toLocaleString()} points`;
   show("result");
 
@@ -260,9 +269,12 @@ function showFinal() {
   const avg = stats.clickTimes.length ? stats.clickTimes.reduce((a, b) => a + b, 0) / stats.clickTimes.length / 1000 : null;
   $("helper-stats").innerHTML = [
     ["Raises detected", stats.raises],
+    ["Raises per round", stats.rounds ? (stats.raises / stats.rounds).toFixed(1) : "–"],
+    ["Raises ignored (head moving)", stats.gated],
     ["Clicks used", stats.clicks],
     ["Average time from screen appearing to click", avg === null ? "–" : `${avg.toFixed(1)} s`],
     ["Rounds", stats.rounds],
+    ["Automatic re-zeros", stats.autoZeros],
   ].map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join("");
   $("helper-panel").hidden = true;
   $("helper-toggle").setAttribute("aria-expanded", "false");
@@ -358,6 +370,13 @@ function steer(now) {
   const dt = Math.min(0.05, elapsed); // camera step, capped so a hiccup doesn't spin the view
   lastFrame = now;
   checkArmed(now);
+  // Result screen: count down to the next round (paused time doesn't count).
+  if (game.mode === "result" && !cursor.paused && resultSeconds < RESULT_AUTO_S) {
+    resultSeconds += Math.min(1, elapsed);
+    $("next").style.setProperty("--p", Math.min(1, resultSeconds / RESULT_AUTO_S));
+    if (resultSeconds >= RESULT_AUTO_S) $("next").click();
+  }
+  autoZero(now);
   if (game.mode === "look" && !cursor.paused) {
     game.lookSeconds += Math.min(1, elapsed); // real time, even when frames are slow
     if (game.answer?.hint && game.lookSeconds >= HINT_AFTER_S) $("loc-hint").hidden = false;
@@ -376,6 +395,21 @@ function steer(now) {
     }
   }
   requestAnimationFrame(steer);
+}
+
+// Drift fix: on a screen with nothing to aim at (start, result), a head that has been centred and still
+// for 3 s is quietly re-zeroed, once per still spell.
+function autoZero(now) {
+  const calm = game.mode === "start" || game.mode === "result";
+  const [x, y] = headXY(head);
+  const still = calm && Math.abs(x) <= settings.deadzone && Math.abs(y) <= settings.deadzone && (head.gyro_dps ?? Infinity) < STILL_DPS;
+  if (!still) { stillSince = null; zeroedWhileStill = false; return; }
+  stillSince ??= now;
+  if (!zeroedWhileStill && now - stillSince >= STILL_ZERO_MS) {
+    zeroedWhileStill = true;
+    stats.autoZeros += 1;
+    api.send({ cmd: "zero" });
+  }
 }
 
 async function loadGoogleMaps() {

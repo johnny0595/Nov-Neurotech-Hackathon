@@ -51,7 +51,8 @@ export function connect({ onState = () => {}, onEvent = () => {}, onMessage = ()
   const api = { connected: false, send() {} };
   if (mock) {
     const double_enabled = new URLSearchParams(location.search).has("double");
-    const fake = { roll: 0, pitch: 0, yaw: 0, status: `mock (mouse + C${double_enabled ? "/D" : ""} keys)`, envelope: 3, threshold: 10, rate_hz: 0, double_enabled };
+    const fake = { roll: 0, pitch: 0, yaw: 0, status: `mock (mouse + C${double_enabled ? "/D" : ""} keys)`, envelope: 3, threshold: 10, rate_hz: 0, double_enabled, gyro_dps: 0 };
+    let prevTilt = [0, 0];
     addEventListener("mousemove", (e) => {
       fake.roll = ((e.clientX - innerWidth / 2) / (innerWidth / 2)) * 20;
       fake.pitch = ((e.clientY - innerHeight / 2) / (innerHeight / 2)) * 20;
@@ -65,9 +66,13 @@ export function connect({ onState = () => {}, onEvent = () => {}, onMessage = ()
     });
     setInterval(() => {
       fake.envelope = 3 + (fake.envelope - 3) * 0.9 + Math.random() * 0.6; // fake EMG: decays back to rest
+      // fake gyro: how fast the mouse "head" is turning, in deg/s (mouse still = head still)
+      fake.gyro_dps = Math.round(Math.hypot(fake.roll - prevTilt[0], fake.pitch - prevTilt[1]) * 60 * 10) / 10;
+      prevTilt = [fake.roll, fake.pitch];
       onState({ ...fake, envelope: Math.round(fake.envelope * 100) / 100 });
     }, 1000 / 60);
     api.connected = true;
+    api.send = (msg) => console.debug(`[mock] send ${JSON.stringify(msg)}`); // e.g. { cmd: "zero" } from auto re-zero
     return api;
   }
   let ws;
