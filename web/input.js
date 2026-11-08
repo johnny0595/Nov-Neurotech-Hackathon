@@ -283,8 +283,9 @@ export function createCursor({ api, onClick = () => {}, onDrag = () => {}, onPau
       if (c.dragging) onDrag(nx - c.x, ny - c.y);
       c.x = nx; c.y = ny;
       // magnetic targets: ease toward a nearby enabled button (not while dragging the map)
-      const targets = c.dragging || !settings.magnet ? [] : clickableButtons();
-      const shown = magnetize({ x: c.x, y: c.y }, targets.map((b) => b.getBoundingClientRect()), MAGNET_RADIUS, settings.magnet);
+      const strength = settings.assist === "assisted" ? Math.max(0.9, settings.magnet) : settings.magnet; // assisted: 0.9
+      const targets = c.dragging || !strength ? [] : clickableButtons();
+      const shown = magnetize({ x: c.x, y: c.y }, targets.map((b) => b.getBoundingClientRect()), MAGNET_RADIUS, strength);
       c.sx = shown.x; c.sy = shown.y;
       history.push({ t: now, x: c.sx, y: c.sy });
       while (history.length && now - history[0].t > 2000) history.shift();

@@ -71,6 +71,9 @@ const S = {
   "guess.confirm": { plain: "Confirm?", playful: "🔒 Lock it in?" },
   "guess.confirm.label": { plain: "Confirm guess", playful: "Lock it in!" },
   "guess.dropPin": "Drop pin",
+  "guess.zoomHere": "Zoom in here",
+  "guess.hint.choices": "{Act} on the place you think it is",
+  "guess.choice.label": "{place}",
   "guess.movePin": "Move pin here",
   "guess.confirmTip": { plain: "{Act} again to confirm", playful: "Lock it in? Raise again" },
   "guess.hint.double": {

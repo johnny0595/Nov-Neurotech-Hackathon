@@ -141,6 +141,9 @@ button:not(.countdown) > .countdown-ring { display: none; } /* timing off: no co
   -webkit-mask: radial-gradient(circle, transparent 11px, #000 12px); mask: radial-gradient(circle, transparent 11px, #000 12px);
 }
 
+/* ---------- assist "choices": three named places ---------- */
+button.big.choice { max-width: min(340px, 26vw); white-space: normal; font-size: 1.3rem; line-height: 1.15; }
+
 /* ---------- confirm before guessing ---------- */
 .confirm-ring { stroke: var(--sun); stroke-width: 6; stroke-dasharray: 12 10; fill: var(--sun); fill-opacity: .18; animation: ring-pulse 1.2s ease-in-out infinite; }
 @keyframes ring-pulse { 50% { stroke-opacity: .45; fill-opacity: .08; } }

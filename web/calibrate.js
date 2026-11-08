@@ -123,7 +123,7 @@ globalThis.speechSynthesis?.addEventListener?.("voiceschanged", fillVoices);
 $("speechTest").onclick = () => speak(t("setup.speech.test"), { force: true });
 
 // ---------- head settings ----------
-const BOUND = ["xAxis", "yAxis", "invertX", "invertY", "speed", "deadzone", "lookSpeed", "cursorMode", "oneEuroMinCutoff", "oneEuroBeta", "magnet", "tone", "speechOn", "speechVoice", "speechRate", "speechVolume", "timing", "input"];
+const BOUND = ["xAxis", "yAxis", "invertX", "invertY", "speed", "deadzone", "lookSpeed", "cursorMode", "oneEuroMinCutoff", "oneEuroBeta", "magnet", "tone", "speechOn", "speechVoice", "speechRate", "speechVolume", "timing", "input", "assist"];
 function syncControls() {
   for (const id of BOUND) {
     const el = $(id);

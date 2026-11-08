@@ -13,6 +13,12 @@ const ROUNDS = 5;
 // With timing off, nothing cancels on a timer: the lock-in stays until the pin is dropped elsewhere or
 // the player presses Look. Auto-advance and the hint delay also come from timing.js.
 const CONFIRM_PX = 60;
+// Assist levels (settings.assist): "assisted" widens the confirm zone, strengthens the magnet (input.js)
+// and zooms the map in around the cursor before a pin can drop; "choices" offers three named places.
+const ASSISTED_CONFIRM_PX = 100;
+const ASSIST_ZOOM_STEPS = 3; // how far "assisted" zooms in around the cursor, from the region's start view
+const confirmPx = () => (settings.assist === "assisted" ? ASSISTED_CONFIRM_PX : CONFIRM_PX);
+const choicesMode = () => settings.assist === "choices";
 const STILL_ZERO_MS = 3000; // auto re-zero after this long still and centred on a screen with nothing to do
 const STILL_DPS = 5;
 const STICK_MAX_DEG = 15; // the look-screen stick's outer ring
@@ -91,20 +97,22 @@ const cursor = createCursor({
   onClick(x, y, target) {
     if (game.mode === "start") return startGame(); // a click anywhere but a button starts
     if (game.mode === "look" && target === null) return flashHint(t("single.tiltDown")); // clicked above the band
-    if (game.mode !== "guess" || !target?.closest("#map")) return;
+    if (game.mode !== "guess" || !target?.closest("#map") || choicesMode()) return;
     // (x, y) is the click-lock position: where the cursor was just before the raise began
-    if (armed?.kind === "pin" && pinDistance(x, y) <= CONFIRM_PX) return submitGuess();
+    if (armed?.kind === "pin" && pinDistance(x, y) <= confirmPx()) return submitGuess();
     const rect = $("map").getBoundingClientRect();
-    placePin(map.containerPointToLatLng(L.point(x - rect.left, y - rect.top)));
+    const point = L.point(x - rect.left, y - rect.top);
+    if (needsAssistZoom()) return map.setZoomAround(point, assistZoom()); // assisted: zoom in first, then drop
+    placePin(map.containerPointToLatLng(point));
     arm("pin");
   },
   onDrag(dx, dy) {
     if (game.mode === "guess") map.panBy([-dx, -dy], { animate: false });
   },
   labelAt(x, y, target) {
-    if (game.mode !== "guess" || !target.closest("#map")) return "";
-    if (armed?.kind === "pin") return t(pinDistance(x, y) <= CONFIRM_PX ? "guess.confirm.label" : "guess.movePin");
-    return t("guess.dropPin");
+    if (game.mode !== "guess" || !target.closest("#map") || choicesMode()) return "";
+    if (armed?.kind === "pin") return t(pinDistance(x, y) <= confirmPx() ? "guess.confirm.label" : "guess.movePin");
+    return t(needsAssistZoom() ? "guess.zoomHere" : "guess.dropPin");
   },
   onHoverLabel(text) {
     speak(text);
@@ -139,6 +147,40 @@ function placePin(latlng) {
   $("submit-guess").disabled = false;
 }
 
+const assistZoom = () => Math.min(map.getMaxZoom(), region.view.zoom + ASSIST_ZOOM_STEPS);
+/** Assisted: a head click on a zoomed-out map zooms in around the cursor before it can drop a pin. */
+function needsAssistZoom() {
+  return settings.assist === "assisted" && !armed && map.getZoom() < assistZoom() - 0.5;
+}
+
+// ---------- assist "choices": the real place and two others; one click picks ----------
+function shuffled(list) {
+  const a = [...list];
+  for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
+  return a;
+}
+function setupChoices() {
+  const on = choicesMode();
+  for (const id of ["zoom-in", "zoom-out", "submit-guess"]) $(id).hidden = on;
+  const others = shuffled(region.locations.filter((l) => l.name !== game.answer?.name)).slice(0, 2);
+  const options = on && game.answer ? shuffled([game.answer, ...others]) : [];
+  for (let i = 0; i < 3; i++) {
+    const btn = $(`choice-${i}`);
+    btn.hidden = !options[i];
+    if (!options[i]) continue;
+    btn.textContent = options[i].name;
+    btn.dataset.raiseLabel = t("guess.choice.label", { place: options[i].name });
+    btn.onclick = () => {
+      // the right place counts as an exact guess; a wrong one scores by how far apart the places are
+      game.guess = options[i].name === game.answer.name ? L.latLng(game.answer.lat, game.answer.lng) : L.latLng(options[i].lat, options[i].lng);
+      guessMarker?.remove();
+      guessMarker = L.marker(game.guess).addTo(map);
+      submitGuess();
+    };
+  }
+  $("guess-hint").innerHTML = t(on ? "guess.hint.choices" : singleInput() ? "guess.hint.single" : "guess.hint.double");
+}
+
 function pinDistance(x, y) {
   if (!game.guess) return Infinity;
   const rect = $("map").getBoundingClientRect();
@@ -150,7 +192,7 @@ function arm(kind) {
   disarm();
   armed = { kind, farSince: null };
   if (kind === "pin") {
-    armed.ring = L.circleMarker(game.guess, { radius: CONFIRM_PX, className: "confirm-ring", interactive: false }).addTo(map);
+    armed.ring = L.circleMarker(game.guess, { radius: confirmPx(), className: "confirm-ring", interactive: false }).addTo(map);
     guessMarker.bindTooltip(t("guess.confirmTip"), { permanent: true, direction: "top", offset: [-15, -42], className: "confirm-tip" }).openTooltip();
   } else {
     $("submit-guess").classList.add("confirming");
@@ -179,7 +221,7 @@ function checkArmed(now) {
   if (game.mode !== "guess") return disarm();
   const { x, y } = cursor.position;
   let away;
-  if (armed.kind === "pin") away = pinDistance(x, y) > CONFIRM_PX;
+  if (armed.kind === "pin") away = pinDistance(x, y) > confirmPx();
   else {
     const r = $("submit-guess").getBoundingClientRect();
     away = x < r.left - 20 || x > r.right + 20 || y < r.top - 20 || y > r.bottom + 20;
@@ -225,7 +267,7 @@ function updateSingleInstruction() {
 function refreshText() {
   applyStrings();
   $("start-meter").hidden = settings.input === "keyboard-switch";
-  $("guess-hint").innerHTML = t(singleInput() ? "guess.hint.single" : "guess.hint.double");
+  $("guess-hint").innerHTML = t(choicesMode() ? "guess.hint.choices" : singleInput() ? "guess.hint.single" : "guess.hint.double");
   if (!$("look-hint").classList.contains("notice")) $("look-hint").innerHTML = lookHintHtml();
   if (!armed) resetSubmitButton();
   $("round").textContent = t("top.round", { n: Math.max(1, game.round), total: ROUNDS });
@@ -235,7 +277,11 @@ function refreshText() {
   $("speech").setAttribute("aria-pressed", String(Boolean(settings.speechOn)));
   $("score").textContent = t("top.points", { points: game.total.toLocaleString() });
 }
-addEventListener("settings-changed", () => { refreshText(); applyLookLayout(); });
+addEventListener("settings-changed", () => {
+  refreshText();
+  applyLookLayout();
+  if (game.mode === "look" || game.mode === "guess") setupChoices(); // the assist level can change mid-round
+});
 
 function show(mode) {
   if (mode !== "guess") disarm();
@@ -486,6 +532,7 @@ async function loadRound() {
   $("pano").style.visibility = hasPano ? "" : "hidden";
   $("pano-none").hidden = !pano || hasPano;
   $("loc-hint-text").textContent = game.answer.hint ?? "";
+  setupChoices();
   if (!hasPano) game.lookSeconds = Infinity; // nothing to look at: show the hint straight away
   show("look");
 }

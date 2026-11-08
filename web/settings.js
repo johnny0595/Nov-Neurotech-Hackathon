@@ -15,6 +15,9 @@ export const DEFAULTS = {
   // what makes a click: "brow" (eyebrow EMG) | "jaw" (jaw EMG) | "either" | "keyboard-switch" (Space/Enter,
   // e.g. from a physical switch). The server's --channels decides which EMG channels exist.
   input: "brow",
+  // how much the game helps aim: "free" | "assisted" (stronger magnet, bigger confirm zone, zoom in
+  // before the pin drops) | "choices" (pick from three named places instead of a map)
+  assist: "free",
   // copy
   tone: "plain", // "plain" (default, for everyone) | "playful" (the original kid-style copy)
   // read-aloud (speech.js)
