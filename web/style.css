@@ -204,6 +204,16 @@ button.big.confirming { background: var(--coral); animation: ring-pulse 1.2s eas
 .chev-up { left: 50%; top: calc(12vh + 8px); rotate: 90deg; translate: -50% 0; }
 .chev-down { left: 50%; bottom: 190px; rotate: 90deg; translate: -50% 0; }
 
+/* ---------- single-input Street View: choices live in the bottom quarter ---------- */
+.single-band {
+  position: absolute; left: 0; right: 0; bottom: 0; height: 25vh; min-height: 220px; z-index: 395; pointer-events: none;
+  background: linear-gradient(rgba(20,22,43,0), rgba(20,22,43,.6));
+  border-top: 4px dashed rgba(255,248,231,.55);
+}
+.single-band .action-row, .single-band button { pointer-events: auto; }
+.single-instruction { bottom: calc(100% + 12px); white-space: nowrap; }
+.single-mode .look-row { display: none; }
+
 /* ---------- look-screen hint ---------- */
 .loc-hint {
   position: absolute; left: 50%; top: 84px; translate: -50% 0; z-index: 400; max-width: calc(100% - 380px);

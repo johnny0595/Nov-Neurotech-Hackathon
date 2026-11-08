@@ -135,7 +135,10 @@ export function createCursor({ api, onClick = () => {}, onDrag = () => {}, onPau
   overlay.addEventListener("click", () => setPaused(false)); // mouse fallback: click to resume
 
   // x/y: where the head points; sx/sy: shown position after the magnet (used for hit-testing and click lock)
-  const c = { x: innerWidth / 2, y: innerHeight / 2, sx: innerWidth / 2, sy: innerHeight / 2, vx: 0, vy: 0, paused: true, dragging: false, visible: true, head: {} };
+  // bandTop: when set (a fraction of the screen height), the cursor only shows and clicks below that line;
+  // above it the page uses the head for something else (single-input Street View turns the camera)
+  const c = { x: innerWidth / 2, y: innerHeight / 2, sx: innerWidth / 2, sy: innerHeight / 2, vx: 0, vy: 0, paused: true, dragging: false, visible: true, head: {}, bandTop: null };
+  const inBand = (y) => c.bandTop === null || y >= innerHeight * c.bandTop;
   let hovered = null;
   let dragEnabled = true; // false when the server runs single-raise-only (no --double)
   let dwellStart = null;
@@ -201,6 +204,7 @@ export function createCursor({ api, onClick = () => {}, onDrag = () => {}, onPau
     if (c.dragging) { c.dragging = false; return; } // a single raise releases a drag
     if (!c.visible) return;
     const { x, y } = lockedPosition(e);
+    if (!inBand(y)) return onClick(x, y, null); // above the band: the page decides (e.g. "tilt down first")
     if (y < innerHeight * NO_CLICK_TOP) return; // nothing up there is clickable
     const target = document.elementFromPoint(x, y);
     const button = target?.closest("button");
@@ -244,7 +248,7 @@ export function createCursor({ api, onClick = () => {}, onDrag = () => {}, onPau
       history.push({ t: now, x: c.sx, y: c.sy });
       while (history.length && now - history[0].t > 2000) history.shift();
 
-      const under = c.sy < innerHeight * NO_CLICK_TOP ? null : document.elementFromPoint(c.sx, c.sy);
+      const under = c.sy < innerHeight * NO_CLICK_TOP || !inBand(c.sy) ? null : document.elementFromPoint(c.sx, c.sy);
       const button = under?.closest("button");
       if (button !== hovered) { hovered?.classList.remove("head-hover"); button?.classList.add("head-hover"); hovered = button; }
       const text = button ? (button.disabled ? "" : button.dataset.raiseLabel ?? "") : under ? labelAt(c.sx, c.sy, under) : "";
@@ -255,7 +259,7 @@ export function createCursor({ api, onClick = () => {}, onDrag = () => {}, onPau
       label.style.transform = `translate(${c.sx}px, ${c.sy + 50}px)`;
 
       const r = corner.getBoundingClientRect();
-      const inCorner = c.sx >= r.left && c.sx <= r.right && c.sy >= r.top && c.sy <= r.bottom;
+      const inCorner = inBand(c.sy) && c.sx >= r.left && c.sx <= r.right && c.sy >= r.top && c.sy <= r.bottom;
       dwellStart = inCorner ? (dwellStart ?? now) : null;
       const progress = dwellStart ? Math.min(1, (now - dwellStart) / DWELL_MS) : 0;
       corner.style.setProperty("--p", progress);
@@ -263,7 +267,7 @@ export function createCursor({ api, onClick = () => {}, onDrag = () => {}, onPau
     } else if (hovered) { hovered.classList.remove("head-hover"); hovered = null; }
     if (!active) { label.classList.add("hidden"); labelText = ""; }
     el.style.translate = `${c.sx}px ${c.sy}px`; // not transform: the click "pop" animates scale, which would scale the offset
-    el.classList.toggle("hidden", !active);
+    el.classList.toggle("hidden", !active || !inBand(c.sy));
     el.classList.toggle("dragging", c.dragging);
     corner.classList.toggle("hidden", !active);
     requestAnimationFrame(frame);
@@ -279,6 +283,9 @@ export function createCursor({ api, onClick = () => {}, onDrag = () => {}, onPau
     handleEvent,
     setHead(state) { c.head = state; },
     setVisible(v) { c.visible = v; },
+    /** Show and click only below this fraction of the screen height (null = everywhere). */
+    setBand(top) { c.bandTop = top; },
+    get inBand() { return !c.paused && c.visible && inBand(c.sy); },
     pause() { setPaused(true); },
     resume() { setPaused(false); },
     get paused() { return c.paused; },

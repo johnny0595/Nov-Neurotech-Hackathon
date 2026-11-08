@@ -51,6 +51,15 @@
     <div class="chevron chev-right" aria-hidden="true">›</div>
     <div class="chevron chev-up" aria-hidden="true">‹</div>
     <div class="chevron chev-down" aria-hidden="true">›</div>
+    <!-- single input (no double raise): the bottom quarter holds the choices, the rest turns the camera -->
+    <div id="single-band" class="single-band" hidden>
+      <div id="single-instruction" class="hint single-instruction" role="status"></div>
+      <div class="action-row single-row">
+        <button id="tile-walk" class="big" data-s="single.walk" data-s-label="single.walk.label"></button>
+        <button id="tile-map" class="big primary" data-s="single.map" data-s-label="single.map.label"></button>
+        <button id="tile-pause" class="big" data-s="single.pause" data-s-label="single.pause.label"></button>
+      </div>
+    </div>
     <div class="action-row look-row">
       <div id="look-stick" class="look-stick" aria-hidden="true"><div class="stick-dz"></div><div class="stick-dot"></div></div>
       <div id="look-hint" class="hint look-pill" role="status"></div>

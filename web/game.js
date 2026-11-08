@@ -15,6 +15,7 @@ const RESULT_AUTO_S = 6; // the result screen moves on by itself (a raise skips 
 const STILL_ZERO_MS = 3000; // auto re-zero after this long still and centred on a screen with nothing to do
 const STILL_DPS = 5;
 const STICK_MAX_DEG = 15; // the look-screen stick's outer ring
+const SINGLE_BAND_TOP = 0.75; // single-input Street View: the bottom 25% holds Walk / Map / Pause
 const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
 const $ = (id) => document.getElementById(id);
 const region = currentRegion();
@@ -70,15 +71,11 @@ const api = connect({
     // RESULT: there's only "Next", so any raise skips the countdown, wherever the cursor is.
     if (game.mode === "result" && !cursor.paused && e.type === "click") return $("next").click();
     // LOOK: the head steers the camera. With double raises (the default): a single raise walks forward
-    // along the road in view, a double raise opens the map. Single-raise mode (--single): a raise opens the map.
-    if (game.mode === "look" && !cursor.paused) {
-      if (game.doubleEnabled) {
-        if (e.type === "click") return walkForward();
-        if (e.type === "drag_toggle") { beep(880); return showGuess(); }
-      } else {
-        if (e.type === "click") return showGuess();
-        if (e.type === "drag_toggle") return;
-      }
+    // along the road in view, a double raise opens the map. With one kind of click only (single input),
+    // the bottom band's tiles (Walk / Map / Pause) take the clicks instead; see applyLookLayout().
+    if (game.mode === "look" && !cursor.paused && !singleInput()) {
+      if (e.type === "click") return walkForward();
+      if (e.type === "drag_toggle") { beep(880); return showGuess(); }
     }
     cursor.handleEvent(e);
   },
@@ -87,6 +84,7 @@ const cursor = createCursor({
   api,
   onClick(x, y, target) {
     if (game.mode === "start") return startGame(); // a click anywhere but a button starts
+    if (game.mode === "look" && target === null) return flashHint(t("single.tiltDown")); // clicked above the band
     if (game.mode !== "guess" || !target?.closest("#map")) return;
     // (x, y) is the click-lock position: where the cursor was just before the raise began
     if (armed?.kind === "pin" && pinDistance(x, y) <= CONFIRM_PX) return submitGuess();
@@ -189,6 +187,31 @@ function setDoubleEnabled(enabled) {
   game.doubleEnabled = enabled;
   cursor.setDragEnabled(enabled);
   refreshText();
+  applyLookLayout();
+}
+
+/** One reliable click and nothing else: no double raise, so Street View uses the tile band. */
+function singleInput() {
+  return !game.doubleEnabled;
+}
+
+// Street View layout: double raises use the walk/map gestures; single input uses the bottom tile band,
+// with the cursor alive only in that band (above it, the head turns the camera).
+function applyLookLayout() {
+  const single = singleInput();
+  document.body.classList.toggle("single-mode", single);
+  $("single-band").hidden = !single;
+  const look = game.mode === "look";
+  cursor.setVisible(game.mode !== "look" || single);
+  cursor.setBand(look && single ? SINGLE_BAND_TOP : null);
+}
+
+let lastInstruction = "";
+let instructionHeldUntil = 0; // a notice (e.g. "tilt down first") stays up this long before the normal line returns
+function updateSingleInstruction() {
+  if (game.mode !== "look" || !singleInput() || performance.now() < instructionHeldUntil) return;
+  const text = t(cursor.inBand ? "single.choose" : "single.look");
+  if (text !== lastInstruction) { lastInstruction = text; $("single-instruction").textContent = text; }
 }
 
 // All dynamic text, re-rendered when the tone (or later, the input) changes.
@@ -220,7 +243,7 @@ function show(mode) {
   document.querySelectorAll("#guess .action-row, #guess .hint, #guess .top-band").forEach((el) => (el.hidden = mode !== "guess"));
   document.body.classList.toggle("at-start", mode === "start");
   $("corner-meter").hidden = mode === "start";
-  cursor.setVisible(mode !== "look");
+  applyLookLayout();
   if (onMap) map.invalidateSize();
 }
 
@@ -257,6 +280,12 @@ const MAX_WALK_ANGLE = 40; // the road must be on screen, roughly where you're l
 let hintTimer = null;
 function flashHint(html) {
   speak(html);
+  if (singleInput()) { // one instruction at a time: the band's own line shows it
+    lastInstruction = "";
+    instructionHeldUntil = performance.now() + 2500;
+    $("single-instruction").innerHTML = html;
+    return;
+  }
   const hint = $("look-hint");
   hint.innerHTML = html;
   hint.classList.add("notice");
@@ -283,7 +312,7 @@ function walkForward() {
 // pointing to the nearest road when none is in front of you.
 function drawWalkMarker() {
   // only with double raises (walking), and only when this round has a panorama
-  const show = pano && game.doubleEnabled && game.mode === "look" && !cursor.paused && $("pano").style.visibility !== "hidden";
+  const show = pano && game.mode === "look" && !cursor.paused && $("pano").style.visibility !== "hidden";
   $("aim").hidden = !show;
   const near = show ? nearestLink() : null;
   $("walk-marker").hidden = !near?.walkable;
@@ -305,6 +334,9 @@ function drawWalkMarker() {
 
 $("look-again").onclick = () => show("look");
 $("to-map").onclick = showGuess; // mouse fallback for "raise to go to the map"
+$("tile-walk").onclick = () => walkForward();
+$("tile-map").onclick = showGuess;
+$("tile-pause").onclick = () => cursor.pause();
 $("zoom-in").onclick = () => map.zoomIn();
 $("zoom-out").onclick = () => map.zoomOut();
 // A helper's mouse click guesses straight away; a head raise needs a second raise to lock it in.
@@ -479,10 +511,15 @@ function steer(now) {
     const [x, y] = headXY(head);
     const dx = deadzone(x, settings.deadzone);
     const dy = deadzone(y, settings.deadzone);
+    // single input: the bottom band is for choosing, so tilting down doesn't pitch the camera, and
+    // the camera holds still while the cursor is in the band
+    const single = singleInput();
+    const camDy = single ? Math.min(0, dy) : dy;
     updateLookGuide(x, y, dx, dy);
-    if (pano && (dx || dy) && now > manualUntil) {
+    updateSingleInstruction();
+    if (pano && (dx || camDy) && now > manualUntil && !(single && cursor.inBand)) {
       const current = pano.getPov();
-      const pitch = current.pitch - dy * settings.lookSpeed * 0.5 * dt;
+      const pitch = current.pitch - camDy * settings.lookSpeed * 0.5 * dt;
       game.pov = {
         heading: (current.heading + dx * settings.lookSpeed * dt + 360) % 360,
         // the head can't tilt past ±35°, but a mouse view beyond that isn't snapped back either

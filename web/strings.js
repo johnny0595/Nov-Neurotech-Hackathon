@@ -47,6 +47,16 @@ const S = {
   "look.noKey.body": "Put <code>GOOGLE_MAPS_API_KEY=…</code> in <code>.env</code> and restart the server.<br>The rest of the game still works.",
   "look.map": { plain: "Map", playful: "🗺️ Map" },
   "look.map.label": "Go to the map",
+  // single-input Street View: a bottom band of tiles, one instruction at a time
+  "single.walk": { plain: "Walk", playful: "🚶 Walk" },
+  "single.walk.label": "Walk forward",
+  "single.map": { plain: "Map", playful: "🗺️ Map" },
+  "single.map.label": "Guess on the map",
+  "single.pause": { plain: "Pause", playful: "⏸ Pause" },
+  "single.pause.label": "Pause",
+  "single.look": "Look around, then tilt down to choose",
+  "single.choose": "{Act} on Walk, Map or Pause",
+  "single.tiltDown": "Tilt down to the buttons first",
 
   // ---------- guess (map) ----------
   "guess.look": { plain: "Look again", playful: "👀 Look" },
