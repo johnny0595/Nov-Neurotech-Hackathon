@@ -10,39 +10,41 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <link rel="stylesheet" href="style.css">
 </head>
+<!-- All visible text comes from strings.js (data-s* attributes are filled in by applyStrings). -->
 <body class="game is-paused at-start">
   <header class="topbar">
-    <span id="round">Round 1 / 5</span>
-    <span id="score">0 points</span>
-    <span id="status" class="status"></span>
+    <span id="round"></span>
+    <span id="score"></span>
+    <span id="status" class="status" role="status"></span>
   </header>
 
   <section id="start" class="start-screen">
     <div class="start-inner">
-      <h1 class="title">Brow Guessr</h1>
-      <p class="tagline">Raise your eyebrows to play!</p>
+      <h1 class="title" data-s="start.title"></h1>
+      <p class="tagline" data-s="start.tagline"></p>
       <div id="start-meter"></div>
     </div>
     <div class="action-row">
-      <button id="play" class="big primary" data-raise-label="Play">▶ Play</button>
+      <button id="tone" class="big" data-s="start.tone" data-s-label="start.tone.label"></button>
+      <button id="play" class="big primary" data-s="start.play" data-s-label="start.play.label"></button>
     </div>
   </section>
 
   <section id="look" class="screen" hidden>
     <div id="pano"></div>
     <div id="pano-missing" class="pano-missing" hidden>
-      <h2>Street View needs a Google Maps key</h2>
-      <p>Put <code>GOOGLE_MAPS_API_KEY=…</code> in <code>.env</code> and restart the server.<br>The rest of the game still works.</p>
+      <h2 data-s="look.noKey.title"></h2>
+      <p data-s-html="look.noKey.body"></p>
     </div>
-    <!-- walking (with --double): where a single raise walks to -->
+    <!-- walking (double raises): where a single raise walks to -->
     <div id="aim" class="aim" hidden></div>
-    <div id="walk-marker" class="walk-marker" hidden><span>⬆</span><small>raise to walk</small></div>
+    <div id="walk-marker" class="walk-marker" hidden><span>⬆</span><small data-s="look.walkHere"></small></div>
     <div id="road-edge" class="road-edge" hidden></div>
     <div id="pano-none" class="pano-missing" hidden>
-      <h2>No street pictures for this one 🙈</h2>
-      <p>Use the hint and guess on the map!</p>
+      <h2 data-s="look.noPano.title"></h2>
+      <p data-s="look.noPano.body"></p>
     </div>
-    <div id="loc-hint" class="loc-hint" hidden>💡 Hint: <span id="loc-hint-text"></span></div>
+    <div id="loc-hint" class="loc-hint" hidden><span data-s="look.hint"></span> <span id="loc-hint-text"></span></div>
     <!-- head guidance: chevrons glow with turning speed; the stick shows tilt vs the dead zone -->
     <div class="chevron chev-left" aria-hidden="true">‹</div>
     <div class="chevron chev-right" aria-hidden="true">›</div>
@@ -50,8 +52,8 @@
     <div class="chevron chev-down" aria-hidden="true">›</div>
     <div class="action-row look-row">
       <div id="look-stick" class="look-stick" aria-hidden="true"><div class="stick-dz"></div><div class="stick-dot"></div></div>
-      <div id="look-hint" class="hint look-pill">🚶 <b>Raise once</b> to walk · 🤨 <b>raise twice</b> = I know where this is!</div>
-      <button id="to-map" class="big primary" data-raise-label="Go to the map" title="Mouse: drag to look around, click arrows to walk">🗺️ Map</button>
+      <div id="look-hint" class="hint look-pill" role="status"></div>
+      <button id="to-map" class="big primary" data-s="look.map" data-s-label="look.map.label" title="Mouse: drag to look around, click arrows to walk"></button>
     </div>
   </section>
 
@@ -59,30 +61,30 @@
     <div id="map"></div>
     <div class="top-band" aria-hidden="true"></div>
     <div class="action-row">
-      <button id="look-again" class="big" data-raise-label="Look again">👀 Look</button>
-      <button id="zoom-out" class="big round" data-raise-label="Zoom out" aria-label="Zoom out">－</button>
-      <button id="zoom-in" class="big round" data-raise-label="Zoom in" aria-label="Zoom in">＋</button>
-      <button id="submit-guess" class="big primary" data-raise-label="Guess!" disabled>📍 Guess!</button>
+      <button id="look-again" class="big" data-s="guess.look" data-s-label="guess.look.label"></button>
+      <button id="zoom-out" class="big round" data-s-label="guess.zoomOut.label" data-s-aria="guess.zoomOut.label">－</button>
+      <button id="zoom-in" class="big round" data-s-label="guess.zoomIn.label" data-s-aria="guess.zoomIn.label">＋</button>
+      <button id="submit-guess" class="big primary" disabled></button>
     </div>
-    <div id="guess-hint" class="hint small">Raise = drop pin · raise again on it = lock it in · raise twice quickly = grab the map</div>
+    <div id="guess-hint" class="hint small"></div>
   </section>
 
   <section id="result" class="card-screen" hidden>
-    <div class="card">
+    <div class="card" role="status">
       <div id="stars" class="stars"></div>
       <h1 id="result-title"></h1>
-      <p class="result-place">It was <b id="result-place"></b></p>
+      <p class="result-place"><span data-s="result.itWas"></span> <b id="result-place"></b></p>
       <div class="result-numbers">
-        <div><span id="result-distance"></span><small>away</small></div>
-        <div><span id="result-points"></span><small>points</small></div>
+        <div><span id="result-distance"></span><small data-s="result.away"></small></div>
+        <div><span id="result-points"></span><small data-s="result.points"></small></div>
       </div>
       <p id="result-fact" class="fact"></p>
-      <button id="next" class="big primary countdown" data-raise-label="Next" style="--p: 0"><span id="next-text">Next ▶</span><span class="countdown-ring" aria-hidden="true"></span></button>
+      <button id="next" class="big primary countdown" data-s-label="result.next.label" style="--p: 0"><span id="next-text"></span><span class="countdown-ring" aria-hidden="true"></span></button>
     </div>
   </section>
 
   <section id="final" class="final-screen" hidden>
-    <div class="card">
+    <div class="card" role="status">
       <div class="stars">🏆</div>
       <h1 id="final-score"></h1>
       <p id="final-detail"></p>
@@ -91,8 +93,8 @@
       </div>
     </div>
     <div class="action-row">
-      <button id="helper-toggle" class="big" data-raise-label="Helper summary" aria-expanded="false" aria-controls="helper-panel">📋 Helper</button>
-      <button id="play-again" class="big primary" data-raise-label="Play again">Play again ▶</button>
+      <button id="helper-toggle" class="big" data-s="final.helper" data-s-label="final.helper.label" aria-expanded="false" aria-controls="helper-panel"></button>
+      <button id="play-again" class="big primary" data-s="final.playAgain" data-s-label="final.playAgain.label"></button>
     </div>
   </section>
 

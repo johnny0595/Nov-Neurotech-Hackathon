@@ -1,6 +1,7 @@
-import { beep, connect, createCursor, deadzone, headXY, settings } from "./input.js";
+import { beep, connect, createCursor, deadzone, headXY, saveSettings, settings } from "./input.js";
 import { createMeter } from "./meter.js";
 import { currentRegion, panoRequest } from "./regions.js";
+import { applyStrings, t } from "./strings.js";
 
 const ROUNDS = 5;
 const HINT_AFTER_S = 30;
@@ -18,9 +19,7 @@ const $ = (id) => document.getElementById(id);
 const region = currentRegion();
 const params = new URLSearchParams(location.search);
 // Look-screen pill: what a raise does in Street View (walking needs double raises, the default)
-const lookHintHtml = () => (game.doubleEnabled
-  ? "🚶 <b>Raise once</b> to walk · 🤨 <b>raise twice</b> = I know where this is!"
-  : "🤨 <b>Raise</b> = I know where this is!");
+const lookHintHtml = () => t(game.doubleEnabled ? "look.pill.double" : "look.pill.single");
 
 const game = {
   mode: "start", round: 0, total: 0, answer: null, guess: null, pov: { heading: 0, pitch: 0 },
@@ -67,11 +66,6 @@ const api = connect({
         stats.shownAt = null;
       }
     }
-    // START: any raise begins the game (and zeroes the head, like resuming from pause).
-    if (game.mode === "start") {
-      if (e.type === "click") startGame();
-      return;
-    }
     // RESULT: there's only "Next", so any raise skips the countdown, wherever the cursor is.
     if (game.mode === "result" && !cursor.paused && e.type === "click") return $("next").click();
     // LOOK: the head steers the camera. With double raises (the default): a single raise walks forward
@@ -91,6 +85,7 @@ const api = connect({
 const cursor = createCursor({
   api,
   onClick(x, y, target) {
+    if (game.mode === "start") return startGame(); // a click anywhere but a button starts
     if (game.mode !== "guess" || !target?.closest("#map")) return;
     // (x, y) is the click-lock position: where the cursor was just before the raise began
     if (armed?.kind === "pin" && pinDistance(x, y) <= CONFIRM_PX) return submitGuess();
@@ -103,8 +98,8 @@ const cursor = createCursor({
   },
   labelAt(x, y, target) {
     if (game.mode !== "guess" || !target.closest("#map")) return "";
-    if (armed?.kind === "pin") return pinDistance(x, y) <= CONFIRM_PX ? "Lock it in!" : "Move pin here";
-    return "Drop pin";
+    if (armed?.kind === "pin") return t(pinDistance(x, y) <= CONFIRM_PX ? "guess.confirm.label" : "guess.movePin");
+    return t("guess.dropPin");
   },
   onPauseChange(paused) {
     if (!paused && stats.shownAt !== null) stats.shownAt = performance.now(); // time spent paused doesn't count
@@ -148,21 +143,25 @@ function arm(kind) {
   armed = { kind, farSince: null };
   if (kind === "pin") {
     armed.ring = L.circleMarker(game.guess, { radius: CONFIRM_PX, className: "confirm-ring", interactive: false }).addTo(map);
-    guessMarker.bindTooltip("Lock it in? Raise again", { permanent: true, direction: "top", offset: [-15, -42], className: "confirm-tip" }).openTooltip();
+    guessMarker.bindTooltip(t("guess.confirmTip"), { permanent: true, direction: "top", offset: [-15, -42], className: "confirm-tip" }).openTooltip();
   } else {
     $("submit-guess").classList.add("confirming");
-    $("submit-guess").textContent = "🔒 Lock it in?";
-    $("submit-guess").dataset.raiseLabel = "Lock it in!";
+    $("submit-guess").textContent = t("guess.confirm");
+    $("submit-guess").dataset.raiseLabel = t("guess.confirm.label");
   }
+}
+
+function resetSubmitButton() {
+  $("submit-guess").classList.remove("confirming");
+  $("submit-guess").textContent = t("guess.submit");
+  $("submit-guess").dataset.raiseLabel = t("guess.submit.label");
 }
 
 function disarm() {
   if (!armed) return;
   armed.ring?.remove();
   guessMarker?.unbindTooltip();
-  $("submit-guess").classList.remove("confirming");
-  $("submit-guess").textContent = "📍 Guess!";
-  $("submit-guess").dataset.raiseLabel = "Guess!";
+  resetSubmitButton();
   armed = null;
 }
 
@@ -185,11 +184,19 @@ function checkArmed(now) {
 function setDoubleEnabled(enabled) {
   game.doubleEnabled = enabled;
   cursor.setDragEnabled(enabled);
-  $("guess-hint").innerHTML = enabled
-    ? "Raise = drop pin · raise again on it = lock it in · raise twice quickly = grab the map"
-    : "Raise = drop pin · raise again on the pin = lock it in";
-  if (!$("look-hint").classList.contains("notice")) $("look-hint").innerHTML = lookHintHtml();
+  refreshText();
 }
+
+// All dynamic text, re-rendered when the tone (or later, the input) changes.
+function refreshText() {
+  applyStrings();
+  $("guess-hint").innerHTML = t(game.doubleEnabled ? "guess.hint.double" : "guess.hint.single");
+  if (!$("look-hint").classList.contains("notice")) $("look-hint").innerHTML = lookHintHtml();
+  if (!armed) resetSubmitButton();
+  $("round").textContent = t("top.round", { n: Math.max(1, game.round), total: ROUNDS });
+  $("score").textContent = t("top.points", { points: game.total.toLocaleString() });
+}
+addEventListener("settings-changed", refreshText);
 
 function show(mode) {
   if (mode !== "guess") disarm();
@@ -207,7 +214,7 @@ function show(mode) {
   document.querySelectorAll("#guess .action-row, #guess .hint, #guess .top-band").forEach((el) => (el.hidden = mode !== "guess"));
   document.body.classList.toggle("at-start", mode === "start");
   $("corner-meter").hidden = mode === "start";
-  cursor.setVisible(mode !== "look" && mode !== "start");
+  cursor.setVisible(mode !== "look");
   if (onMap) map.invalidateSize();
 }
 
@@ -218,15 +225,20 @@ function showGuess() {
 async function startGame() {
   if (loadingRound) return; // a second raise while the first round loads
   if (cursor.paused) cursor.resume(); // re-zeroes the head's neutral pose
+  else api.send({ cmd: "zero" });
   game.round = 0;
   game.total = 0;
   Object.assign(stats, { raises: 0, gated: 0, clicks: 0, clickTimes: [], rounds: 0, autoZeros: 0, shownAt: null });
-  $("score").textContent = "0 points";
+  $("score").textContent = t("top.points", { points: 0 });
   $("helper-panel").hidden = true;
   await newRound();
 }
 
 $("play").onclick = startGame;
+$("tone").onclick = () => {
+  settings.tone = settings.tone === "playful" ? "plain" : "playful";
+  saveSettings(); // fires settings-changed, which re-renders every string
+};
 
 // Walk to the next Street View photo along the road you're facing.
 const angleBetween = (a, b) => Math.abs(((a - b + 540) % 360) - 180);
@@ -250,8 +262,8 @@ function nearestLink() {
 function walkForward() {
   if (!pano) return;
   const near = nearestLink();
-  if (!near) return flashHint("No road to walk along here. Raise <b>twice</b> to guess 🗺️");
-  if (!near.walkable) return flashHint("Turn toward the road, then raise to walk 🚶");
+  if (!near) return flashHint(t("look.noRoad"));
+  if (!near.walkable) return flashHint(t("look.turnToRoad"));
   pano.setPano(near.link.pano);
 }
 
@@ -275,7 +287,7 @@ function drawWalkMarker() {
   } else {
     const right = near.signed > 0;
     $("road-edge").className = `road-edge ${right ? "right" : "left"}`;
-    $("road-edge").textContent = right ? "road ➡" : "⬅ road";
+    $("road-edge").textContent = t(right ? "look.roadRight" : "look.roadLeft");
   }
 }
 
@@ -297,7 +309,7 @@ function submitGuess() {
   const { points, stars } = region.score(meters);
   game.total += points;
   stats.rounds += 1;
-  const cheer = ["Good try!", "Nice!", "Great job!", "Awesome!", "WOW, amazing!"][stars - 1];
+  const cheer = t("result.cheer")[stars - 1];
 
   resultLayer = L.layerGroup([
     L.circleMarker(game.answer, { radius: 12, color: "#1b1f3b", fillColor: "#2ec4b6", fillOpacity: 1 }),
@@ -310,9 +322,9 @@ function submitGuess() {
   $("result-points").textContent = `+${points.toLocaleString()}`;
   $("result-fact").textContent = game.answer.fact ?? "";
   $("result-fact").hidden = !game.answer.fact;
-  $("next-text").textContent = game.round >= ROUNDS ? "See my score ▶" : "Next ▶";
+  $("next-text").textContent = t(game.round >= ROUNDS ? "result.seeScore" : "result.next");
   resultSeconds = 0;
-  $("score").textContent = `${game.total.toLocaleString()} points`;
+  $("score").textContent = t("top.points", { points: game.total.toLocaleString() });
   show("result");
 
   // Fit guess + answer into the map area above the result card (measured, so small screens work too).
@@ -331,17 +343,17 @@ $("helper-toggle").onclick = () => {
 };
 
 function showFinal() {
-  $("final-score").textContent = `${game.total.toLocaleString()} points!`;
-  $("final-detail").textContent = region.finale;
+  $("final-score").textContent = t("final.score", { points: game.total.toLocaleString() });
+  $("final-detail").textContent = t(`final.finale.${region.id}`);
   const avg = stats.clickTimes.length ? stats.clickTimes.reduce((a, b) => a + b, 0) / stats.clickTimes.length / 1000 : null;
   $("helper-stats").innerHTML = [
-    ["Raises detected", stats.raises],
-    ["Raises per round", stats.rounds ? (stats.raises / stats.rounds).toFixed(1) : "–"],
-    ["Raises ignored (head moving)", stats.gated],
-    ["Clicks used", stats.clicks],
-    ["Average time from screen appearing to click", avg === null ? "–" : `${avg.toFixed(1)} s`],
-    ["Rounds", stats.rounds],
-    ["Automatic re-zeros", stats.autoZeros],
+    [t("stats.raises"), stats.raises],
+    [t("stats.perRound"), stats.rounds ? (stats.raises / stats.rounds).toFixed(1) : "–"],
+    [t("stats.gated"), stats.gated],
+    [t("stats.clicks"), stats.clicks],
+    [t("stats.time"), avg === null ? "–" : `${avg.toFixed(1)} s`],
+    [t("stats.rounds"), stats.rounds],
+    [t("stats.autoZeros"), stats.autoZeros],
   ].map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join("");
   $("helper-panel").hidden = true;
   $("helper-toggle").setAttribute("aria-expanded", "false");
@@ -393,7 +405,7 @@ async function loadRound() {
   game.guess = null;
   game.lookSeconds = 0;
   $("loc-hint").hidden = true;
-  $("round").textContent = `Round ${game.round} / ${ROUNDS}`;
+  $("round").textContent = t("top.round", { n: game.round, total: ROUNDS });
   $("submit-guess").disabled = true;
   guessMarker?.remove(); guessMarker = null;
   resultLayer?.remove(); resultLayer = null;
@@ -554,7 +566,9 @@ setInterval(() => { // backstop: some window managers maximize without either no
 }, 1000);
 
 const mapsReady = loadGoogleMaps().catch(() => false);
+refreshText();
 show("start");
+cursor.resume(); // the start screen is live: point at a button, or click anywhere else to start
 requestAnimationFrame(steer);
 const hasMaps = await mapsReady;
 $("pano-missing").hidden = hasMaps;

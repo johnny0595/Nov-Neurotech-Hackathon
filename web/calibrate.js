@@ -1,4 +1,5 @@
 import { beep, connect, headXY, mock, saveSettings, settings } from "./input.js";
+import { t } from "./strings.js";
 
 const $ = (id) => document.getElementById(id);
 let maxEnvSeen = 1;
@@ -10,7 +11,7 @@ const api = connect({
       axesLearned = s.axes_learned;
       $("manualAxes").hidden = axesLearned;
       $("clearAxes").hidden = !axesLearned;
-      if (!$("axesStatus").dataset.sticky) $("axesStatus").textContent = axesLearned ? "Head calibrated ✓ (saved). Recalibrate if the headset moved." : "Not calibrated yet: press Calibrate head.";
+      if (!$("axesStatus").dataset.sticky) $("axesStatus").textContent = t(axesLearned ? "setup.axes.done" : "setup.axes.none");
     }
     const live = s.status === "live" || mock;
     $("conn").textContent = s.status ?? "";
@@ -38,7 +39,7 @@ const api = connect({
     if (e.type === "click" || e.type === "drag_toggle") beep(e.type === "click" ? 660 : 880);
     const li = document.createElement("li");
     li.className = e.type;
-    const note = e.type === "gated_raise" ? " — ignored, head was moving" : "";
+    const note = e.type === "gated_raise" ? t("setup.log.ignored") : "";
     li.textContent = `${new Date().toLocaleTimeString()} — ${e.type}${e.duration_s ? ` (${e.duration_s}s)` : ""}${note}`;
     $("log").prepend(li);
   },
@@ -46,17 +47,17 @@ const api = connect({
     if (m.t === "axes") {
       $("axesStatus").dataset.sticky = "1";
       $("axesStatus").innerHTML = m.ok
-        ? `Calibrated ✓ at ${new Date().toLocaleTimeString()}. Nod and turn: the dot should follow cleanly. If it ever creeps, press Re-center.`
-        : `Didn't work: ${(m.problems || []).join("; ")}. Try again.`;
+        ? t("setup.axes.ok", { time: new Date().toLocaleTimeString() })
+        : t("setup.axes.failed", { problems: (m.problems || []).join("; ") });
     }
-    if (m.t === "saved") $("saved").innerHTML = m.path ? `Saved <code>${m.path}</code>. Tell Claude: “analyze ${m.path}”.` : "Nothing was saved.";
+    if (m.t === "saved") $("saved").innerHTML = m.path ? t("setup.rec.saved", { path: m.path }) : t("setup.rec.nothing");
   },
 });
 const fmt = (v) => (v ?? 0).toFixed(1).padStart(6);
 let lastXY = [0, 0]; // latest head tilt (x right, y down), for the range step
 
 // ---------- head settings ----------
-for (const id of ["xAxis", "yAxis", "invertX", "invertY", "speed", "deadzone", "lookSpeed", "cursorMode", "oneEuroMinCutoff", "oneEuroBeta", "magnet"]) {
+for (const id of ["xAxis", "yAxis", "invertX", "invertY", "speed", "deadzone", "lookSpeed", "cursorMode", "oneEuroMinCutoff", "oneEuroBeta", "magnet", "tone"]) {
   const el = $(id);
   const key = el.type === "checkbox" ? "checked" : "value";
   const out = $(`${id}-val`);
@@ -74,10 +75,10 @@ $("zero").onclick = () => api.send({ cmd: "zero" });
 // Each extreme is the median tilt over a 2 s hold. The hold only counts while the head is clearly
 // tilted that way, and restarts if it drops back, so a quick wobble doesn't set the range.
 const RANGE_STEPS = [
-  ["left", "←", "Tilt LEFT as far as is comfortable", ([x]) => -x],
-  ["right", "→", "Tilt RIGHT as far as is comfortable", ([x]) => x],
-  ["down", "↓", "Tilt DOWN as far as is comfortable", ([, y]) => y],
-  ["up", "↑", "Now tilt UP, just a little", ([, y]) => -y],
+  ["left", "←", "setup.range.left", ([x]) => -x],
+  ["right", "→", "setup.range.right", ([x]) => x],
+  ["down", "↓", "setup.range.down", ([, y]) => y],
+  ["up", "↑", "setup.range.up", ([, y]) => -y],
 ];
 const HOLD_MS = 2000;
 const MIN_RANGE = { left: 3, right: 3, down: 3, up: 2 };
@@ -86,17 +87,15 @@ let rangeRunning = false;
 function showRange() {
   for (const [dir] of RANGE_STEPS) $(`range-${dir}`).textContent = settings.range ? `${settings.range[dir].toFixed(1)}°` : "–";
   if (!rangeRunning) {
-    $("range-prompt").textContent = settings.range
-      ? "Calibrated. Comfortable tilt reaches the screen edge."
-      : "Not calibrated: the cursor uses the speed slider.";
+    $("range-prompt").textContent = t(settings.range ? "setup.range.done" : "setup.range.none");
     $("range-arrow").textContent = "↔";
     $("range-ring").style.setProperty("--p", settings.range ? 1 : 0);
   }
 }
 
-async function holdExtreme(arrow, text, along) {
+async function holdExtreme(arrow, key, along) {
   $("range-arrow").textContent = arrow;
-  $("range-prompt").textContent = `${text}… and hold`;
+  $("range-prompt").textContent = t("setup.range.hold", { text: t(key) });
   const enough = Math.max(settings.deadzone + 1.5, 2.5); // clearly tilted, not just jitter
   let start = null;
   let samples = [];
@@ -122,14 +121,14 @@ async function holdExtreme(arrow, text, along) {
 $("range-start").onclick = async () => {
   if (rangeRunning) { rangeRunning = false; return; } // second press cancels
   rangeRunning = true;
-  $("range-start").textContent = "Cancel";
+  $("range-start").textContent = t("setup.range.cancel");
   const range = {};
   for (const [dir, arrow, text, along] of RANGE_STEPS) {
     const value = await holdExtreme(arrow, text, along);
     if (value === null) break;
     range[dir] = Math.max(MIN_RANGE[dir], value);
     $(`range-${dir}`).textContent = `${range[dir].toFixed(1)}°`;
-    $("range-prompt").textContent = "Back to the middle…";
+    $("range-prompt").textContent = t("setup.range.back");
     await sleep(900);
   }
   if (rangeRunning && Object.keys(range).length === 4) {
@@ -137,7 +136,7 @@ $("range-start").onclick = async () => {
     saveSettings();
   }
   rangeRunning = false;
-  $("range-start").textContent = "Calibrate range";
+  $("range-start").textContent = t("setup.range.start");
   showRange();
 };
 $("range-reset").onclick = () => {
@@ -154,9 +153,9 @@ $("calibrate").onclick = async () => {
   const btn = $("calibrate");
   btn.disabled = true;
   api.send({ cmd: "calibrate_start" });
-  for (let s = 8; s > 0; s--) { btn.textContent = `Relax… ${s}`; await sleep(1000); }
+  for (let s = 8; s > 0; s--) { btn.textContent = t("setup.brow.relax", { s }); await sleep(1000); }
   api.send({ cmd: "calibrate_stop" });
-  btn.textContent = "Calibrate (relax 8 s)";
+  btn.textContent = t("setup.brow.button");
   btn.disabled = false;
 };
 
@@ -168,41 +167,41 @@ $("learnAxes").onclick = async () => {
   const phase = (p) => api.send({ cmd: "axes_phase", phase: p });
   const zero = () => api.send({ cmd: "zero" });
   const steps = 6;
-  const count = (n) => { $("prompt-count").textContent = `Head calibration · step ${n} of ${steps}`; };
+  const count = (n) => { $("prompt-count").textContent = t("setup.axes.step", { n, total: steps }); };
   $("learnAxes").disabled = true;
   $("abort").hidden = true;
   $("prompt").hidden = false;
   delete $("axesStatus").dataset.sticky;
-  $("axesStatus").textContent = "Calibrating…";
+  $("axesStatus").textContent = t("setup.axes.running");
   phase("begin");
   count(1);
-  await step("Sit comfortably, look at the screen<br>and hold <b>completely still</b> 🧘", 6);
+  await step(t("setup.axes.still"), 6);
   zero();
   count(2);
   phase("nod");
-  await step("Nod YES, slowly ↕<br><small>up and down, keep going</small>", 5, "action");
+  await step(t("setup.axes.nod"), 5, "action");
   phase("none");
-  await step("Look straight at the screen", 2);
+  await step(t("setup.axes.straight"), 2);
   count(3);
   phase("turn");
-  await step("Shake NO, slowly ↔<br><small>left and right, keep going</small>", 5, "action");
+  await step(t("setup.axes.shake"), 5, "action");
   phase("none");
-  await step("Look straight at the screen", 2);
+  await step(t("setup.axes.straight"), 2);
   zero();
   count(4);
-  await step("Look UP ⬆", 1, "action");
+  await step(t("setup.axes.up"), 1, "action");
   phase("up");
-  await step("Look UP ⬆ and hold", 1.5, "action");
+  await step(t("setup.axes.upHold"), 1.5, "action");
   phase("none");
-  await step("Look straight at the screen", 2);
+  await step(t("setup.axes.straight"), 2);
   zero();
   count(5);
-  await step("Turn to look RIGHT ➡", 1, "action");
+  await step(t("setup.axes.right"), 1, "action");
   phase("right");
-  await step("Turn to look RIGHT ➡ and hold", 1.5, "action");
+  await step(t("setup.axes.rightHold"), 1.5, "action");
   phase("none");
   count(6);
-  await step("Look straight at the screen<br>and hold still", 3);
+  await step(t("setup.axes.finish"), 3);
   zero();
   api.send({ cmd: "axes_finish" });
   $("prompt").hidden = true;
@@ -213,13 +212,14 @@ $("clearAxes").onclick = () => {
   api.send({ cmd: "axes_clear" });
   delete $("axesStatus").dataset.sticky;
 };
+// [label, string key, seconds, kind]: the prompt text is looked up when shown
 const TRIALS = [
-  ...Array(20).fill(["eyebrow_raise", "Raise your eyebrows ONCE", 1.5, "action"]),
-  ...Array(10).fill(["double_raise", "Raise TWICE, quickly", 2.0, "action"]),
-  ...Array(5).fill(["hard_negative_blink", "Blink a few times 😌<br><small>eyebrows still</small>", 2.0, "negative"]),
-  ...Array(5).fill(["hard_negative_swallow", "Swallow 😮‍💨", 2.0, "negative"]),
-  ...Array(5).fill(["hard_negative_head_move", "Move your head a little<br><small>eyebrows still</small>", 2.0, "negative"]),
-  ...Array(5).fill(["hard_negative_talk", "Say “hello, how are you?”", 2.0, "negative"]),
+  ...Array(20).fill(["eyebrow_raise", "setup.rec.single", 1.5, "action"]),
+  ...Array(10).fill(["double_raise", "setup.rec.double", 2.0, "action"]),
+  ...Array(5).fill(["hard_negative_blink", "setup.rec.blink", 2.0, "negative"]),
+  ...Array(5).fill(["hard_negative_swallow", "setup.rec.swallow", 2.0, "negative"]),
+  ...Array(5).fill(["hard_negative_head_move", "setup.rec.headMove", 2.0, "negative"]),
+  ...Array(5).fill(["hard_negative_talk", "setup.rec.talk", 2.0, "negative"]),
 ];
 let aborted = false;
 
@@ -238,21 +238,21 @@ $("record").onclick = async () => {
   const trials = [...TRIALS].sort(() => Math.random() - 0.5);
   $("prompt").hidden = false;
   api.send({ cmd: "record_start", name: $("name").value, note: $("note").value, protocol: "brow_v1" });
-  await step("Get ready…", 3);
+  await step(t("setup.rec.ready"), 3);
   api.send({ cmd: "calibrate_start" }); // also labels this window "neutral"
-  await step("Relax and look ahead", 8);
+  await step(t("setup.rec.relaxLook"), 8);
   api.send({ cmd: "calibrate_stop" });
-  for (const [i, [label, text, seconds, kind]] of trials.entries()) {
+  for (const [i, [label, key, seconds, kind]] of trials.entries()) {
     if (aborted) return;
     $("prompt-count").textContent = `${i + 1} / ${trials.length}`;
-    await step("Relax", 1.5 + Math.random());
+    await step(t("setup.rec.relax"), 1.5 + Math.random());
     if (aborted) return;
     api.send({ cmd: "mark", label, edge: "start" });
-    await step(text, seconds, kind);
+    await step(t(key), seconds, kind);
     api.send({ cmd: "mark", label, edge: "end" });
   }
   api.send({ cmd: "mark", label: "neutral_end", edge: "start" });
-  await step("Relax — almost done", 6);
+  await step(t("setup.rec.almost"), 6);
   api.send({ cmd: "mark", label: "neutral_end", edge: "end" });
   api.send({ cmd: "record_stop" });
   $("prompt").hidden = true;

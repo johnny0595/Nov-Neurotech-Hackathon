@@ -1,5 +1,9 @@
 // Head + eyebrow input shared by the game and the calibration page.
 import { OneEuro, gainsFromRange, lockLookbackMs, magnetize, pointTarget, positionAt } from "./pointer.js";
+import { saveSettings, settings } from "./settings.js";
+import { t } from "./strings.js";
+
+export { saveSettings, settings };
 
 // Live: head angles and eyebrow events stream from the Python server over /ws.
 // Mock (?mock=1): mouse position stands in for head tilt, C = eyebrow click (a 0.3 s raise), D = double raise.
@@ -7,26 +11,8 @@ import { OneEuro, gainsFromRange, lockLookbackMs, magnetize, pointTarget, positi
 // them off, like the server's --single.
 // G = a raise the server ignored because the head was moving (gated_raise).
 
-const DEFAULTS = {
-  xAxis: "roll", yAxis: "pitch", invertX: false, invertY: false, deadzone: 3, speed: 60, maxSpeed: 1100, lookSpeed: 7,
-  range: null, // comfortable tilt per direction in degrees, from calibrate.html: { left, right, down, up }
-  // "point": cursor = centre + gain x tilt, like a head mouse (needs the range step; until then it
-  // falls back to "joystick": tilt = cursor speed, scaled by the speed slider)
-  cursorMode: "point",
-  oneEuroMinCutoff: 1.0, // Hz: lower = steadier when still
-  oneEuroBeta: 0.02, // higher = less lag when moving fast
-  magnet: 0.6, // pull toward a button within 80 px: 0 = off, 1 = snap to its centre
-};
 const MAGNET_RADIUS = 80;
 const MOCK_RANGE = { left: 20, right: 20, down: 20, up: 20 }; // mock maps the window edges to ±20°
-
-function readStored() {
-  try { return JSON.parse(localStorage.getItem("brow-settings")) || {}; } catch { return {}; }
-}
-export const settings = { ...DEFAULTS, ...readStored() };
-export function saveSettings() {
-  try { localStorage.setItem("brow-settings", JSON.stringify(settings)); } catch { /* private mode: settings last this visit only */ }
-}
 
 export const mock = new URLSearchParams(location.search).has("mock");
 
@@ -129,10 +115,14 @@ export function createCursor({ api, onClick = () => {}, onDrag = () => {}, onPau
   el.className = "head-cursor";
   const corner = document.createElement("div");
   corner.className = "pause-tile";
-  corner.innerHTML = "<span>⏸</span><b>Pause</b><small>hold here</small>";
   const overlay = document.createElement("div");
   overlay.className = "pause-overlay";
-  overlay.innerHTML = `<div><h1>Paused</h1><p>Look straight ahead,<br>then <b>raise your eyebrows</b> to play.</p><small>Helper: press Space or click here</small></div>`;
+  function renderText() {
+    corner.innerHTML = `<span>⏸</span><b>${t("pauseTile.title")}</b><small>${t("pauseTile.hold")}</small>`;
+    overlay.innerHTML = `<div><h1>${t("pause.title")}</h1><p>${t("pause.body")}</p><small>${t("pause.helper")}</small></div>`;
+  }
+  renderText();
+  addEventListener("settings-changed", renderText); // tone or input changed
   // "What will a raise do here?" pill under the cursor: data-raise-label on buttons, or labelAt() from the page
   const label = document.createElement("div");
   label.className = "raise-label hidden";
@@ -187,7 +177,7 @@ export function createCursor({ api, onClick = () => {}, onDrag = () => {}, onPau
     const seen = kind === "seen";
     if (seen) beep(660, 90);
     else beep(330, 160, 0.05); // softer, lower: not an error, just "try again"
-    badge.textContent = seen ? "Raise seen ✓" : "Hold still, then raise";
+    badge.textContent = t(seen ? "badge.seen" : "badge.hold");
     badge.className = `raise-badge ${seen ? "seen" : "hold"}`;
     badge.classList.toggle("at-cursor", !c.paused && c.visible);
     // position with `translate` (not `transform`): the pop animation's `scale` would scale a transform offset too

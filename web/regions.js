@@ -43,7 +43,6 @@ export const REGIONS = {
     snapRadius: 150,
     score: raleighScore,
     formatDistance: formatMiles,
-    finale: "You explored Raleigh! Play again?",
   },
   world: {
     id: "world",
@@ -54,7 +53,6 @@ export const REGIONS = {
     snapRadius: 1000,
     score: worldScore,
     formatDistance: formatKm,
-    finale: "You explored the whole world. Play again?",
   },
 };
 

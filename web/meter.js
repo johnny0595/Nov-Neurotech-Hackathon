@@ -1,3 +1,5 @@
+import { t } from "./strings.js";
+
 // Live eyebrow meter: a bar of the EMG envelope with a marker at the detection threshold.
 // Same scale as the setup page: the threshold sits in the middle (full scale = 2 × threshold).
 export function createMeter(root, { compact = false } = {}) {
@@ -10,7 +12,6 @@ export function createMeter(root, { compact = false } = {}) {
   const mark = root.querySelector(".brow-meter-mark");
   const label = root.querySelector(".brow-meter-label");
   let maxSeen = 1;
-  let calibrated = null;
 
   return {
     update(state) {
@@ -19,13 +20,10 @@ export function createMeter(root, { compact = false } = {}) {
       const full = state.threshold ? state.threshold * 2 : maxSeen * 1.2;
       fill.style.width = `${Math.min(100, (state.envelope / full) * 100)}%`;
       root.classList.toggle("over", Boolean(state.threshold) && state.envelope > state.threshold);
-      if (Boolean(state.threshold) !== calibrated) {
-        calibrated = Boolean(state.threshold);
-        mark.hidden = !calibrated;
-        label.textContent = calibrated
-          ? (compact ? "eyebrows" : "Lift your eyebrows past the line")
-          : (compact ? "not calibrated" : "Not calibrated yet. Helper: open Setup (calibrate.html)");
-      }
+      const calibrated = Boolean(state.threshold);
+      mark.hidden = !calibrated;
+      const text = t(`meter.${calibrated ? "ready" : "uncalibrated"}${compact ? ".short" : ""}`);
+      if (label.textContent !== text) label.textContent = text;
     },
     flash() {
       root.classList.remove("flash");
