@@ -72,7 +72,7 @@ globalThis.speechSynthesis?.addEventListener?.("voiceschanged", fillVoices);
 $("speechTest").onclick = () => speak(t("setup.speech.test"), { force: true });
 
 // ---------- head settings ----------
-for (const id of ["xAxis", "yAxis", "invertX", "invertY", "speed", "deadzone", "lookSpeed", "cursorMode", "oneEuroMinCutoff", "oneEuroBeta", "magnet", "tone", "speechOn", "speechVoice", "speechRate", "speechVolume"]) {
+for (const id of ["xAxis", "yAxis", "invertX", "invertY", "speed", "deadzone", "lookSpeed", "cursorMode", "oneEuroMinCutoff", "oneEuroBeta", "magnet", "tone", "speechOn", "speechVoice", "speechRate", "speechVolume", "timing"]) {
   const el = $(id);
   const key = el.type === "checkbox" ? "checked" : "value";
   const out = $(`${id}-val`);
@@ -85,6 +85,27 @@ for (const id of ["xAxis", "yAxis", "invertX", "invertY", "speed", "deadzone", "
   };
 }
 $("zero").onclick = () => api.send({ cmd: "zero" });
+
+// ---------- timing: presets, or custom sliders (0 = never / straight away) ----------
+const TIMING_FIELDS = ["autoAdvanceS", "lockCancelS", "pauseDwellS", "hintDelayS", "speechHoverS"];
+const NEVER_AT_ZERO = new Set(["autoAdvanceS", "lockCancelS", "pauseDwellS"]);
+function showTiming() {
+  $("timingCustomRow").hidden = settings.timing !== "custom";
+  for (const f of TIMING_FIELDS) {
+    const v = Number(settings.timingCustom[f]);
+    $(`t-${f}`).value = v;
+    $(`t-${f}-val`).textContent = v === 0 ? (NEVER_AT_ZERO.has(f) ? "never" : "straight away") : `${v} s`;
+  }
+}
+for (const f of TIMING_FIELDS) {
+  $(`t-${f}`).oninput = () => {
+    settings.timingCustom = { ...settings.timingCustom, [f]: Number($(`t-${f}`).value) };
+    saveSettings();
+    showTiming();
+  };
+}
+$("timing").addEventListener("input", showTiming);
+showTiming();
 
 // ---------- comfortable range (per-direction cursor gains) ----------
 // Each extreme is the median tilt over a 2 s hold. The hold only counts while the head is clearly

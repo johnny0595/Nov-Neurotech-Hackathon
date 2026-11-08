@@ -3,15 +3,15 @@ import { createMeter } from "./meter.js";
 import { currentRegion, panoRequest } from "./regions.js";
 import { speak } from "./speech.js";
 import { applyStrings, t } from "./strings.js";
+import { timing } from "./timing.js";
 
 const ROUNDS = 5;
-const HINT_AFTER_S = 30;
 // Guessing can't be undone, so a head guess takes two raises: the first drops (or arms) the pin, the
-// second, within CONFIRM_PX of it, locks it in. Wandering further away for CANCEL_MS cancels; the delay
-// ignores the upward nudge a raise itself gives the head.
+// second, within CONFIRM_PX of it, locks it in. With a lock-in cancel time set (timing.js), wandering
+// further away for that long cancels; the delay ignores the upward nudge a raise itself gives the head.
+// With timing off, nothing cancels on a timer: the lock-in stays until the pin is dropped elsewhere or
+// the player presses Look. Auto-advance and the hint delay also come from timing.js.
 const CONFIRM_PX = 60;
-const CANCEL_MS = 700;
-const RESULT_AUTO_S = 6; // the result screen moves on by itself (a raise skips the wait): fewer raises per round
 const STILL_ZERO_MS = 3000; // auto re-zero after this long still and centred on a screen with nothing to do
 const STILL_DPS = 5;
 const STICK_MAX_DEG = 15; // the look-screen stick's outer ring
@@ -68,8 +68,12 @@ const api = connect({
         stats.shownAt = null;
       }
     }
-    // RESULT: there's only "Next", so any raise skips the countdown, wherever the cursor is.
-    if (game.mode === "result" && !cursor.paused && e.type === "click") return $("next").click();
+    // RESULT: a click on empty space means "Next" (no aiming needed); a click on a button (Next, Pause)
+    // presses that button.
+    if (game.mode === "result" && !cursor.paused && e.type === "click") {
+      const { x, y } = cursor.lockedPosition(e);
+      if (!document.elementFromPoint(x, y)?.closest("button")) return $("next").click();
+    }
     // LOOK: the head steers the camera. With double raises (the default): a single raise walks forward
     // along the road in view, a double raise opens the map. With one kind of click only (single input),
     // the bottom band's tiles (Walk / Map / Pause) take the clicks instead; see applyLookLayout().
@@ -179,7 +183,8 @@ function checkArmed(now) {
     away = x < r.left - 20 || x > r.right + 20 || y < r.top - 20 || y > r.bottom + 20;
   }
   armed.farSince = away ? (armed.farSince ?? now) : null;
-  if (armed.farSince !== null && now - armed.farSince > CANCEL_MS) disarm();
+  const cancelMs = timing().lockCancelS * 1000; // 0 = never on a timer
+  if (cancelMs > 0 && armed.farSince !== null && now - armed.farSince > cancelMs) disarm();
 }
 
 // ---------- screens: start → (look ⇄ guess → result) × ROUNDS → final ----------
@@ -471,7 +476,7 @@ async function loadRound() {
   $("pano").style.visibility = hasPano ? "" : "hidden";
   $("pano-none").hidden = !pano || hasPano;
   $("loc-hint-text").textContent = game.answer.hint ?? "";
-  if (!hasPano) game.lookSeconds = HINT_AFTER_S;
+  if (!hasPano) game.lookSeconds = Infinity; // nothing to look at: show the hint straight away
   show("look");
 }
 
@@ -495,16 +500,18 @@ function steer(now) {
   const dt = Math.min(0.05, elapsed); // camera step, capped so a hiccup doesn't spin the view
   lastFrame = now;
   checkArmed(now);
-  // Result screen: count down to the next round (paused time doesn't count).
-  if (game.mode === "result" && !cursor.paused && resultSeconds < RESULT_AUTO_S) {
+  // Result screen: count down to the next round if auto-advance is on (paused time doesn't count).
+  const autoS = timing().autoAdvanceS;
+  $("next").classList.toggle("countdown", autoS > 0);
+  if (autoS > 0 && game.mode === "result" && !cursor.paused && resultSeconds < autoS) {
     resultSeconds += Math.min(1, elapsed);
-    $("next").style.setProperty("--p", Math.min(1, resultSeconds / RESULT_AUTO_S));
-    if (resultSeconds >= RESULT_AUTO_S) $("next").click();
+    $("next").style.setProperty("--p", Math.min(1, resultSeconds / autoS));
+    if (resultSeconds >= autoS) $("next").click();
   }
   autoZero(now);
   if (game.mode === "look" && !cursor.paused) {
     game.lookSeconds += Math.min(1, elapsed); // real time, even when frames are slow
-    if (game.answer?.hint && game.lookSeconds >= HINT_AFTER_S && $("loc-hint").hidden) {
+    if (game.answer?.hint && game.lookSeconds >= timing().hintDelayS && $("loc-hint").hidden) {
       $("loc-hint").hidden = false;
       speak(t("say.hint", { hint: game.answer.hint }));
     }

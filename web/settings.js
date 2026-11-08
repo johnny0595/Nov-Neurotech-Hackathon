@@ -18,7 +18,9 @@ export const DEFAULTS = {
   speechRate: 1,
   speechVolume: 1,
   speechVoice: "", // "" = the system default voice
-  speechHoverMs: 500, // read the cursor's label after it rests on the same target this long
+  // timing (timing.js): "off" (default: nothing is timed) | "slower" | "normal" | "faster" | "custom"
+  timing: "off",
+  timingCustom: { autoAdvanceS: 6, lockCancelS: 0.7, pauseDwellS: 2, hintDelayS: 30, speechHoverS: 0.5 },
 };
 
 function readStored() {

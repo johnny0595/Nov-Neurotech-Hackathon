@@ -2,6 +2,7 @@
 import { OneEuro, gainsFromRange, lockLookbackMs, magnetize, pointTarget, positionAt } from "./pointer.js";
 import { saveSettings, settings } from "./settings.js";
 import { t } from "./strings.js";
+import { timing } from "./timing.js";
 
 export { saveSettings, settings };
 
@@ -101,24 +102,28 @@ export function beep(freq = 660, ms = 90, volume = 0.15) {
   osc.stop(audio.currentTime + ms / 1000);
 }
 
-const DWELL_MS = 2000;
 export const NO_CLICK_TOP = 0.12; // top 12% of the screen: looking up makes people raise their brows
 
 /**
  * On-page cursor driven by head tilt. It never touches the OS pointer, so it cannot escape the page.
- * Pause: Space/Esc (helper), or hold the cursor on the bottom-left "Pause" tile for 2 s. Any eyebrow raise resumes.
+ * Pause: Space/Esc (helper), a click on the bottom-left "Pause" tile, or (if timing allows) holding the
+ * cursor on it for the dwell time. Any eyebrow raise resumes.
  * Head clicks in the top 12% of the screen are ignored (looking up causes involuntary raises).
  * Resuming recenters the cursor and re-zeros the head's neutral pose.
  */
 export function createCursor({ api, onClick = () => {}, onDrag = () => {}, onPauseChange = () => {}, labelAt = () => "", onHoverLabel = () => {} }) {
   const el = document.createElement("div");
   el.className = "head-cursor";
-  const corner = document.createElement("div");
+  const corner = document.createElement("button"); // a real button: one click pauses, even with dwell off
   corner.className = "pause-tile";
+  corner.type = "button";
+  corner.addEventListener("click", () => setPaused(true));
   const overlay = document.createElement("div");
   overlay.className = "pause-overlay";
   function renderText() {
-    corner.innerHTML = `<span>⏸</span><b>${t("pauseTile.title")}</b><small>${t("pauseTile.hold")}</small>`;
+    const dwell = timing().pauseDwellS > 0;
+    corner.innerHTML = `<span>⏸</span><b>${t("pauseTile.title")}</b>${dwell ? `<small>${t("pauseTile.hold")}</small>` : ""}`;
+    corner.dataset.raiseLabel = t("pauseTile.title");
     overlay.innerHTML = `<div><h1>${t("pause.title")}</h1><p>${t("pause.body")}</p><small>${t("pause.helper")}</small></div>`;
   }
   renderText();
@@ -255,13 +260,14 @@ export function createCursor({ api, onClick = () => {}, onDrag = () => {}, onPau
       if (label.textContent !== text) label.textContent = text;
       label.classList.toggle("hidden", !text);
       if (text !== labelText) { labelText = text; labelSince = now; labelReported = false; }
-      else if (text && !labelReported && now - labelSince >= settings.speechHoverMs) { labelReported = true; onHoverLabel(text); }
+      else if (text && !labelReported && now - labelSince >= timing().speechHoverS * 1000) { labelReported = true; onHoverLabel(text); }
       label.style.transform = `translate(${c.sx}px, ${c.sy + 50}px)`;
 
       const r = corner.getBoundingClientRect();
-      const inCorner = inBand(c.sy) && c.sx >= r.left && c.sx <= r.right && c.sy >= r.top && c.sy <= r.bottom;
+      const dwellMs = timing().pauseDwellS * 1000; // 0 = no dwell: the tile is clicked like a button
+      const inCorner = dwellMs > 0 && inBand(c.sy) && c.sx >= r.left && c.sx <= r.right && c.sy >= r.top && c.sy <= r.bottom;
       dwellStart = inCorner ? (dwellStart ?? now) : null;
-      const progress = dwellStart ? Math.min(1, (now - dwellStart) / DWELL_MS) : 0;
+      const progress = dwellStart ? Math.min(1, (now - dwellStart) / dwellMs) : 0;
       corner.style.setProperty("--p", progress);
       if (progress >= 1) setPaused(true);
     } else if (hovered) { hovered.classList.remove("head-hover"); hovered = null; }

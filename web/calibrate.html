@@ -32,6 +32,23 @@
         <label>Volume <input type="range" id="speechVolume" min="0" max="1" step="0.1"> <span id="speechVolume-val"></span></label>
         <button id="speechTest" type="button">Test voice</button>
       </fieldset>
+      <fieldset class="row">
+        <legend>Timing</legend>
+        <label>Timed help <select id="timing">
+          <option value="off">Off: nothing happens on a timer</option>
+          <option value="slower">Slower</option>
+          <option value="normal">Normal</option>
+          <option value="faster">Faster</option>
+          <option value="custom">Custom…</option>
+        </select></label>
+        <span id="timingCustomRow" class="row">
+          <label>Next round after <input type="range" id="t-autoAdvanceS" min="0" max="20" step="1"> <span id="t-autoAdvanceS-val"></span></label>
+          <label>Cancel a pending guess after <input type="range" id="t-lockCancelS" min="0" max="3" step="0.1"> <span id="t-lockCancelS-val"></span></label>
+          <label>Hold to pause <input type="range" id="t-pauseDwellS" min="0" max="5" step="0.5"> <span id="t-pauseDwellS-val"></span></label>
+          <label>Show the hint after <input type="range" id="t-hintDelayS" min="0" max="90" step="5"> <span id="t-hintDelayS-val"></span></label>
+          <label>Read a label after resting <input type="range" id="t-speechHoverS" min="0" max="2" step="0.1"> <span id="t-speechHoverS-val"></span></label>
+        </span>
+      </fieldset>
     </section>
 
     <section class="panel">

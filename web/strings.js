@@ -116,7 +116,7 @@ const S = {
   "pause.body": { plain: "Look straight ahead, then {act} to continue.", playful: "Look straight ahead,<br>then <b>raise your eyebrows</b> to play." },
   "pause.helper": "Helper: press Space or click here",
   "pauseTile.title": "Pause",
-  "pauseTile.hold": "hold here",
+  "pauseTile.hold": "or hold here",
   "badge.seen": { plain: "{Act} detected ✓", playful: "Raise seen ✓" },
   "badge.hold": "Hold still, then {act}",
 
