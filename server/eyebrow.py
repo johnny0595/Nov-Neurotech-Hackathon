@@ -31,6 +31,7 @@ class DetectorParams:
     max_s: float = 1.5
     double_window_s: float = 0.8  # second raise must end within this long after the first
     debounce_s: float = 0.1
+    max_threshold: float = 0.0  # ceiling on the threshold (0 = none): a noisy rest can't push it above real raises
 
     @classmethod
     def load(cls, path: Path = PARAMS_PATH, **overrides) -> "DetectorParams":
@@ -41,6 +42,26 @@ class DetectorParams:
             names = {f.name for f in fields(cls)}
             values = {k: tuple(v) if k == "band_hz" else v for k, v in saved.items() if k in names}
         return cls(**{**values, **overrides})
+
+
+def quiet_part(values: np.ndarray, window: int) -> np.ndarray:
+    """The calmer half of a "relax" recording, judged in `window`-sample chunks.
+
+    People fidget, swallow or speak during the rest period. Those bursts blow up the MAD,
+    and k * MAD then sits above every real raise (session 20261108-102647: 0/20 detected).
+    Keeping the quieter half of the chunks drops the bursts and barely changes a clean rest.
+    """
+    chunks = [values[i:i + window] for i in range(0, len(values) - window + 1, window)]
+    if len(chunks) < 2:
+        return values
+    levels = np.array([np.median(c) for c in chunks])
+    keep = levels <= np.median(levels)
+    return np.concatenate([c for c, k in zip(chunks, keep) if k])
+
+
+NOISE_CHUNKS = 12  # 3 s of 0.25 s chunks
+NOISE_FRACTION = 0.5  # background this close to the threshold ...
+NOISE_OVER_REST = 2.0  # ... and well above the calibrated rest = bad contact, not a face at rest
 
 
 class EyebrowDetector:
@@ -58,13 +79,21 @@ class EyebrowDetector:
         self._burst_peak = 0.0
         self._last_end = -(10**9)
         self._pending: list[int] = []
+        # Noise guard: median envelope of recent 0.25 s chunks. A raise fills at most a few
+        # chunks; a loose or moving electrode fills them all and would read as a stream of raises.
+        self._chunk = max(1, int(0.25 * self.p.fs))
+        self._chunk_sum = 0.0
+        self._chunk_count = 0
+        self._chunk_levels: list[float] = []
+        self.noisy = False
 
     @property
     def threshold(self) -> float | None:
         if self.baseline is None:
             return None
         median, mad = self.baseline
-        return max(median + self.p.k * mad, 2.0 * median)
+        thr = max(median + self.p.k * mad, 2.0 * median)
+        return min(thr, self.p.max_threshold) if self.p.max_threshold > 0 else thr
 
     def start_calibration(self) -> None:
         self._calib = []
@@ -74,6 +103,7 @@ class EyebrowDetector:
         self._calib = None
         if values.size < self.p.fs:  # need at least 1 s of neutral
             return self.threshold
+        values = quiet_part(values, int(self.p.fs))
         median = float(np.median(values))
         self.baseline = (median, float(np.median(np.abs(values - median))) * 1.4826)
         return self.threshold
@@ -93,7 +123,18 @@ class EyebrowDetector:
             if self._calib is not None:
                 self._calib.append(env)
                 continue
-            if thr is not None:
+            self._chunk_sum += env
+            self._chunk_count += 1
+            if self._chunk_count >= self._chunk:
+                self._chunk_levels = (self._chunk_levels + [self._chunk_sum / self._chunk_count])[-NOISE_CHUNKS:]
+                self._chunk_sum, self._chunk_count = 0.0, 0
+                level = float(np.median(self._chunk_levels))
+                self.noisy = thr is not None and len(self._chunk_levels) == NOISE_CHUNKS and \
+                    level > NOISE_FRACTION * thr and level > NOISE_OVER_REST * self.baseline[0]
+                if self.noisy:  # drop half-seen bursts too, so noise can't finish a "double"
+                    self._burst_start = None
+                    self._pending.clear()
+            if thr is not None and not self.noisy:
                 if self._burst_start is None:
                     if env > thr and self.n - self._last_end > self.p.debounce_s * fs:
                         self._burst_start = self.n
@@ -121,4 +162,5 @@ class EyebrowDetector:
             "params": asdict(self.p),
             "baseline": self.baseline,
             "threshold": self.threshold,
+            "noisy": self.noisy,
         }

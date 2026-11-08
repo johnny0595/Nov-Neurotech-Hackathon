@@ -49,3 +49,13 @@ def test_quiet_and_slow_blink_bumps_give_nothing():
 
 def test_uncalibrated_detector_never_fires():
     assert EyebrowDetector().feed(emg(4, [(1.0, 0.4)])) == []
+
+
+def test_loose_electrode_noise_gives_no_toggles():
+    """Minutes of loud, bursty noise (bad contact) must not flip walk/drive back and forth."""
+    det = calibrated()
+    rng = np.random.default_rng(1)
+    x = emg(20) + rng.normal(0, 40, 20 * FS) * (1 + (rng.random(20 * FS) > 0.97) * 4)
+    det.feed(x[: 4 * FS])  # the first 3 s can still fire before the guard has seen enough
+    assert det.noisy
+    assert types(det.feed(x[4 * FS:])) == []

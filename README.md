@@ -1,17 +1,71 @@
-# Brow Guessr
+# Browsr
 
-A GeoGuessr-style game for kids who can't use a mouse. **Head tilt** steers Street View and an on-screen cursor. **Raising your eyebrows** clicks. Input comes from the NeuroPawn Knight IMU board: the IMU on the headset for head tilt, plus one forehead EMG electrode for the eyebrows.
+## What it is
 
-| Gesture | Effect |
+Hands-free Street View. You put on a headset and explore the world without using your hands. It opens on the street outside the building you're in. From there you can:
+
+- look around by turning your head;
+- walk or drive by raising your eyebrows;
+- jump anywhere by voice ("take me to Paris").
+
+The headset is a NeuroPawn Knight IMU board. Its motion sensor (IMU) tracks the head, and one forehead EMG electrode picks up the eyebrow muscle. A Python server reads the board, turns the signals into head position and click events, and streams them to a web page over a WebSocket. The page drives Google Street View.
+
+## Why
+
+People with ALS, high spinal cord injury, or other conditions that take away hand function often can't leave the house easily. They can't use a mouse or touchscreen to explore on their own either. Brow Explorer gives them back some independent "going outside":
+
+- see their own street, or travel anywhere;
+- every input is one a person with no hand movement can still make: small head movements, an eyebrow raise, or speech;
+- a caregiver can set it up once (start location, calibration) and pause it at any time.
+
+This started as a GeoGuessr-style guessing game ("Brow Guessr") and became a free-exploration experience instead.
+
+## How it works: no neural net
+
+All predictions come from classic signal processing with a few settings tuned on recorded data. There is **no trained classifier**. The previous hackathon's extra-trees model caught only 57% of raises. A per-person threshold detector is simpler, runs in real time, and can be recalibrated in 8 s.
+
+| Job | Method | Code |
+|---|---|---|
+| Eyebrow raise → click | Band-pass the forehead EMG to 25–55 Hz, then take an RMS envelope. Set a per-person threshold from a relaxed baseline: median + *k* × MAD over the quieter half of an 8 s rest, capped at `max_threshold`. A burst of 0.16–2 s above the threshold is a raise; two raises within 1 s make a double raise. | `server/eyebrow.py` |
+| Tuning the detector | Grid search over 500 settings. Each one is replayed through the real detector on every recorded session and scored leave-one-session-out. The winner is saved to `data/detector_params.json`, which the server loads at start-up. | `server/train.py` |
+| Head orientation | A Madgwick filter fuses the accelerometer and gyro (`ahrs` library). | `server/orientation.py` |
+| Head → left/right, up/down | Learned from a 25 s nod/shake calibration (the nod axis is found by SVD), so it works however the sensor is mounted. Up/down comes from gravity, so it can't drift. Left/right is the gyro integrated about vertical, eased back to centre while the head is still. | `server/head_axes.py` |
+| Look around | Rate control: the further you turn, the faster the view turns, with a deadzone so a still head keeps the view still. | `web/game.js` |
+| Voice | The browser's Web Speech API (Chrome/Edge). | `web/game.js` |
+| Place names → coordinates | Google Geocoding, or OpenStreetMap Nominatim as a fallback. The result snaps to the nearest Google Street View photo. | `web/game.js` |
+
+**Current eyebrow results.** These come from 6 recorded sessions from 2 people. Each session is scored with settings tuned *without* it (`data/detector_params.json`):
+
+| | Result |
 |---|---|
-| Tilt head | Look around in Street View. On the map, move the cursor. |
-| Raise eyebrows once | In Street View: walk forward along the road you're facing. On the map: drop a pin or press a button. |
-| Raise eyebrows twice quickly | In Street View: go to the guess map. On the map: grab the map and move it; raise once to let go. |
-| Look at the top-right corner for 2 s | Pause |
+| Single raises caught | 103/120 (86%). Five sessions caught 18–20 out of 20; one of Zach's caught 9/20. |
+| Double raises caught | 35/60 (58%) |
+| False raises | 0.5–3.4 per minute (mean 1.7), mostly blinks, swallows and talking |
+
+Next steps:
+- get false raises under 0.5 per minute;
+- make double raises more reliable;
+- record more sessions with more people.
+
+## Controls
+
+| Input | Effect |
+|---|---|
+| Turn or tilt your head | Look around (like a joystick: the further you turn, the faster the view turns) |
+| Raise eyebrows once | **Walking:** take one step along the road in view. **Car:** start or stop driving. |
+| Raise eyebrows twice quickly | Switch between walking 🚶 and the car 🚗 |
+| Say "go to …" a place | Travel there, e.g. "go to the Grand Canyon" or "take me to Paris" |
+| Say "go home" / "surprise me" | Back to the starting street / a random famous place |
+| Say "stop", "walk", "drive", "pause" | Park the car / switch mode / pause |
 | Helper presses Space or Esc | Pause or resume |
+| Helper presses `/` | Type a place instead of saying it |
 | Any raise while paused | Resume. The head's neutral position is reset at the same time. |
 
-The cursor is drawn inside the web page. It never moves the computer's real mouse, so it can't get lost or get stuck away from the off switch.
+A green arrow shows where a raise will take you. If no road is in front of you, a tag at the edge of the screen points to the nearest one. While driving, turning your head steers at junctions. If the road ends, the car parks itself.
+
+**Where it starts:** `START_LOCATION` in `.env` (`lat,lng` or an address, set once by a caregiver). If it's empty, the browser's location is used (the browser asks once), and if that isn't available, a default place. It snaps to the nearest Google Street View photo.
+
+**Voice** uses the browser's speech recognition. That needs Chrome or Edge and microphone permission, and the audio is processed by the browser vendor's speech service. Place names are looked up with Google's geocoder if your key allows the Geocoding API, otherwise with OpenStreetMap Nominatim (free, no key).
 
 ## Run it
 
@@ -23,7 +77,7 @@ open http://localhost:8000/                 # the game
 ```
 
 You can work without the headset:
-- `http://localhost:8000/?mock=1`: the mouse position stands in for head tilt. Press **C** for one eyebrow raise and **D** for a double raise.
+- `http://localhost:8000/?mock=1`: the mouse position stands in for head movement. Press **C** for one eyebrow raise and **D** for a double raise.
 - `uv run python -m server.app --replay data/sessions/<dir>`: replays a recorded session in real time.
 
 ## Hardware setup
@@ -61,23 +115,24 @@ The best settings are saved to `data/detector_params.json`, and the server loads
 
 The scoring rewards caught single raises the most. Then it rewards caught double raises (×0.5), and penalises false raises per minute (×0.25) and singles read as doubles (×0.5). Change the `W_*` weights in `server/train.py` to shift the balance. Use `--dry-run` to see results without saving.
 
-## Google Street View key (free tier, capped at $0)
+## Google Maps key (free tier)
 
-The game works without a key, but the look screen stays blank. To add one:
+Without a key the Street View screen stays blank. To add one:
 
-1. In Google Cloud Console, create a project, add a billing account, and enable **Maps JavaScript API**.
-2. Under Credentials, create an API key. Restrict it to **Maps JavaScript API** only, and to the website `http://localhost:8000/*`.
-3. Under APIs & Services → Maps JavaScript API → Quotas, cap **Dynamic Street View** at about 150 per day. The free tier is 5,000 per month.
-4. Under Billing → Budgets, add a budget alert at $1.
-5. Copy `.env.example` to `.env` and paste in the key.
+1. In Google Cloud Console, create a project, add a billing account, and enable **Maps JavaScript API**. Optionally also enable **Geocoding API**; without it, voice place names use OpenStreetMap Nominatim.
+2. Under Credentials, create an API key. Restrict it to those APIs and to the websites `http://localhost:8000/*` and `http://127.0.0.1:8000/*`.
+3. Under Billing → Budgets, add a $1 budget alert. An alert only emails you; it doesn't stop charges. As far as we know, Dynamic Street View is billed per page load, not per step, so walking and driving don't add cost. Check usage in the console after a long drive to confirm.
+4. Copy `.env.example` to `.env`, paste in the key, and optionally set `START_LOCATION`.
 
 ## Code layout
 
 ```
-server/  app.py (web + /ws), board.py (BrainFlow), eyebrow.py (detector),
-         orientation.py + rows.py + ports.py (ported from the old repo),
+server/  app.py (web + /ws), board.py (BrainFlow), eyebrow.py (raise detector), train.py (detector tuning),
+         head_axes.py (head calibration), orientation.py + rows.py + ports.py (ported from the old repo),
          recording.py, evaluate.py
-web/     index.html + game.js (game), calibrate.html + calibrate.js (setup/recording),
-         input.js (shared head cursor, pause, mock), locations.js
+web/     index.html + game.js (explorer: Street View, walk/drive, voice), calibrate.html + calibrate.js
+         (setup/recording), input.js (head input, pause, mock), locations.js ("surprise me" places)
+tools/   visual_tests.html (SSVEP/alpha flicker tests from early exploration)
+data/    sessions/ (recordings, committed), detector_params.json (tuned detector)
 tests/   uv run pytest
 ```

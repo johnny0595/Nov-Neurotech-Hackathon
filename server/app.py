@@ -170,6 +170,7 @@ class Hub:
             "axes_learned": self.head_axes.ready,
             "envelope": round(self.detector.envelope, 2),
             "threshold": self.detector.threshold,
+            "noisy": self.detector.noisy,
             "k": self.detector.p.k,
             "rate_hz": round(self.rate_hz, 1),
             "recording": self.recorder.active,
@@ -247,7 +248,12 @@ def create_app(hub: Hub) -> FastAPI:
 
     @app.get("/config")
     def config() -> dict:
-        return {"mapsKey": os.environ.get("GOOGLE_MAPS_API_KEY", ""), "status": hub.status}
+        return {
+            "mapsKey": os.environ.get("GOOGLE_MAPS_API_KEY", ""),
+            # where the explorer starts: "lat,lng" or an address; empty = ask the browser for its location
+            "startLocation": os.environ.get("START_LOCATION", ""),
+            "status": hub.status,
+        }
 
     @app.websocket("/ws")
     async def ws_endpoint(ws: WebSocket) -> None:

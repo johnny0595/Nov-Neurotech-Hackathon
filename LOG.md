@@ -25,6 +25,17 @@
 
 ## Progress log
 
+### 2026-11-07 (evening): Brow Explorer (branch `explore-mode`)
+- Direction change: no more guessing game. It's now a viewing experience for ALS patients with no
+  hand function: start outside their own building, look around, walk or drive, and say "go to …" a place.
+- Raise once = step (walking) or start/stop (car); raise twice = switch walking/car. Voice:
+  "go to X", "go home", "surprise me", "stop", "walk", "drive", "pause". Helper can press `/` to type.
+- Start location: `START_LOCATION` in `.env`, else browser location, else a default.
+- Tested in mouse mode: "go to the grand canyon" lands on the Colorado River in the canyon; car mode
+  drives down Broadway from Times Square. Not yet tried with the headset or a real microphone.
+- Open questions: ALS often affects speech too, so voice may not work for every patient. Consider
+  a favourites list chosen with raises. Also: a way for the patient to pause by themselves.
+
 ### 2026-11-07
 - Eyebrow capture working on **channel 8** (`uv run python -m server.app --channel 8`); raises
   show up after calibration. Board issues found:
@@ -140,3 +151,15 @@ From NCSU Libraries ([catalog](https://www.lib.ncsu.edu/devices)). Loan length a
 - Lab Streaming Layer (LSL): https://labstreaminglayer.org
 - MNE-Python: https://mne.tools
 - BrainFlow: https://brainflow.org
+
+### 2026-11-08 morning: retrained with Zach's sessions
+- Two new sessions (102250, 102647, Zach). With the old settings, 102250 got 17/20 raises and **102647 got 0/20**.
+- Why 102647 failed: during its 8 s "relax" period there were muscle bursts up to about 2500. The baseline spread (MAD) came out about twice as large, and k×MAD set the threshold (about 3450) above the raises.
+- Raise peaks are about 3500–5500 at gain 12 in every session, for both people. Only the resting noise varies.
+- Fixes:
+  - The baseline now uses the quieter half of the rest period, in 1 s chunks (`quiet_part`).
+  - New `max_threshold` setting caps the threshold. Training picked 2000.
+- New settings: k=20, cap 2000, release 0.5, debounce 0.1 s.
+  - 102647: 19/20 after tuning.
+  - The other sessions: 16–20/20, with 0.5–2.4 false raises per minute.
+  - When 102647 is held out of training, it still only gets 9/20. No other session is noisy, so training without it has no reason to choose a cap.

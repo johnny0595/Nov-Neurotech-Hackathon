@@ -1,0 +1,53 @@
+{
+  "started_at": "2026-11-08T10:23:19",
+  "name": "zach",
+  "note": "normal",
+  "protocol": "brow_v1",
+  "channel": 8,
+  "fs": 125,
+  "source": {
+    "port": "/dev/cu.usbserial-A5069RR4",
+    "brainflow_version": "5.23.0",
+    "nominal_rate_hz": 125,
+    "channel": 8,
+    "gain": 12
+  },
+  "detector": {
+    "params": {
+      "fs": 125,
+      "band_hz": [
+        25.0,
+        55.0
+      ],
+      "envelope_s": 0.03,
+      "k": 16.0,
+      "release": 0.6,
+      "release_of_peak": 0.2,
+      "min_s": 0.16,
+      "max_s": 2.0,
+      "double_window_s": 1.0,
+      "debounce_s": 0.05
+    },
+    "baseline": [
+      610.7191540598668,
+      442.8967506529445
+    ],
+    "threshold": 7697.067164506979
+  },
+  "aborted": false,
+  "rate": {
+    "samples": 26122,
+    "timestamp_span_s": 208.245,
+    "rate_from_timestamps_hz": 125.43,
+    "package_counter_min_max": [
+      0.0,
+      255.0
+    ],
+    "package_diff_histogram": {
+      "1": 26019,
+      "-255": 102
+    },
+    "max_timestamp_gap_ms": 19.5
+  },
+  "unclosed_labels": []
+}

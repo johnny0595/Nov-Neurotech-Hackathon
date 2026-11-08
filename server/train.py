@@ -35,6 +35,8 @@ SPACE: dict[str, list] = {
     "max_s": [1.0, 1.5, 2.0],
     "double_window_s": [0.6, 0.8, 1.0],
     "debounce_s": [0.05, 0.1, 0.15],
+    # Raise peaks sit around 3500-5500 at gain 12 for every person so far; the resting noise is what varies.
+    "max_threshold": [0.0, 1500.0, 2000.0, 2500.0, 3000.0],
 }
 
 # Objective weights. Missed singles hurt most (that's the click); false raises are the
