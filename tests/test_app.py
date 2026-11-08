@@ -35,6 +35,8 @@ def test_process_gates_raises_while_the_head_turns():
     events = batch(0.5) + batch(0.4, loud=True, turning=True) + batch(1.5)
     events += batch(0.4, loud=True) + batch(1.5)
     assert [e["type"] for e in events if e["type"] != "raise"] == ["gated_raise", "click"]
+    click = next(e for e in events if e["type"] == "click")
+    assert click["duration_s"] > 0 and click["delay_s"] == 0.0  # sent over /ws for the page's click lock
     assert hub.snapshot()["gyro_gate"] == 60
 
 

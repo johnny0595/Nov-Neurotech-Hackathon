@@ -7,6 +7,8 @@ With double_enabled=False every valid raise is a "click" the moment it ends (no 
 and "drag_toggle" is never emitted.
 An optional per-sample "blocked" mask (see gyrogate.py) drops any raise whose burst overlaps it;
 those come out as "gated_raise" instead, so they never become clicks.
+Every click carries the raise's duration_s, and delay_s = how long after the raise ended it was emitted
+(0 in single mode), so the page can hit-test where the cursor was just before the raise began.
 Time is counted in samples, so replaying a recording is deterministic.
 """
 
@@ -49,7 +51,7 @@ class EyebrowDetector:
         self._burst_peak = 0.0
         self._burst_blocked = False
         self._last_end = -(10**9)
-        self._pending: list[int] = []
+        self._pending: list[tuple[int, float]] = []  # (end sample, duration_s) of raises awaiting a 2nd
 
     @property
     def threshold(self) -> float | None:
@@ -108,17 +110,18 @@ class EyebrowDetector:
                     elif self.p.min_s <= duration <= self.p.max_s:
                         events.append({"type": "raise", "sample": self.n, "duration_s": round(duration, 3)})
                         if self.p.double_enabled:
-                            self._pending.append(self.n)
+                            self._pending.append((self.n, round(duration, 3)))
                         else:
-                            events.append({"type": "click", "sample": self.n})
+                            events.append({"type": "click", "sample": self.n, "duration_s": round(duration, 3), "delay_s": 0.0})
                 else:
                     self._burst_peak = max(self._burst_peak, env)
                     self._burst_blocked |= bool(gated)
             if len(self._pending) >= 2:
                 events.append({"type": "drag_toggle", "sample": self.n})
                 self._pending.clear()
-            elif self._pending and (self.n - self._pending[0]) > self.p.double_window_s * fs:
-                events.append({"type": "click", "sample": self.n})
+            elif self._pending and (self.n - self._pending[0][0]) > self.p.double_window_s * fs:
+                end, dur = self._pending[0]
+                events.append({"type": "click", "sample": self.n, "duration_s": dur, "delay_s": round((self.n - end) / fs, 3)})
                 self._pending.clear()
         self.envelope = sqrt(self.env2)
         return events

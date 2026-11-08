@@ -69,3 +69,17 @@ def test_single_only_never_emits_drag_toggle():
 
 def test_single_only_two_quick_raises_are_two_clicks():
     assert types(calibrated(double_enabled=False).feed(emg(4, [(1.0, 0.3), (1.5, 0.3)]))) == ["click", "click"]
+
+
+def test_click_carries_raise_duration_for_click_lock():
+    single = calibrated(double_enabled=False).feed(emg(4, [(1.0, 0.4)]))
+    raise_ = next(e for e in single if e["type"] == "raise")
+    click = next(e for e in single if e["type"] == "click")
+    assert click["duration_s"] == raise_["duration_s"] and 0.3 <= click["duration_s"] <= 0.6
+    assert click["delay_s"] == 0.0
+
+    double = calibrated().feed(emg(4, [(1.0, 0.4)]))
+    raise_ = next(e for e in double if e["type"] == "raise")
+    click = next(e for e in double if e["type"] == "click")
+    assert click["duration_s"] == raise_["duration_s"]
+    assert click["delay_s"] == round((click["sample"] - raise_["sample"]) / FS, 3) > 0.8  # waited for a 2nd raise

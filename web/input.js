@@ -1,6 +1,8 @@
 // Head + eyebrow input shared by the game and the calibration page.
+import { lockLookbackMs, positionAt } from "./pointer.js";
+
 // Live: head angles and eyebrow events stream from the Python server over /ws.
-// Mock (?mock=1): mouse position stands in for head tilt, C = eyebrow click, D = double raise.
+// Mock (?mock=1): mouse position stands in for head tilt, C = eyebrow click (a 0.3 s raise), D = double raise.
 // Like the server (without --double), mock is single-raise-only; add &double=1 to make D drag the map.
 
 const DEFAULTS = { xAxis: "roll", yAxis: "pitch", invertX: false, invertY: false, deadzone: 3, speed: 60, maxSpeed: 1100, lookSpeed: 7 };
@@ -39,7 +41,7 @@ export function connect({ onState = () => {}, onEvent = () => {}, onMessage = ()
     });
     addEventListener("keydown", (e) => {
       if (e.target.closest?.("input, select, textarea")) return;
-      if (e.key === "c") { fake.envelope = 24; onEvent({ type: "raise" }); onEvent({ type: "click" }); }
+      if (e.key === "c") { fake.envelope = 24; onEvent({ type: "raise", duration_s: 0.3 }); onEvent({ type: "click", duration_s: 0.3, delay_s: 0 }); }
       if (e.key === "d" && double_enabled) { fake.envelope = 24; onEvent({ type: "raise" }); onEvent({ type: "raise" }); onEvent({ type: "drag_toggle" }); }
     });
     setInterval(() => {
@@ -110,11 +112,18 @@ export function createCursor({ api, onClick = () => {}, onDrag = () => {}, onPau
   let dragEnabled = true; // false when the server runs single-raise-only (no --double)
   let dwellStart = null;
   let last = performance.now();
+  // Click lock: raising the eyebrows nudges the head (and so the cursor) up, so a click is hit-tested
+  // where the cursor was just before the raise began, not where it is when the click arrives.
+  const history = []; // { t, x, y } for the last ~2 s (double mode clicks arrive ~0.8 s after the raise)
+  function lockedPosition(e) {
+    return positionAt(history, performance.now() - lockLookbackMs(e)) ?? { x: c.x, y: c.y };
+  }
 
   function setPaused(paused) {
     c.paused = paused;
     c.dragging = false;
     dwellStart = null;
+    history.length = 0; // positions from before a pause don't count
     if (!paused) {
       c.x = innerWidth / 2; c.y = innerHeight / 2; c.vx = c.vy = 0;
       api.send({ cmd: "zero" });
@@ -138,10 +147,11 @@ export function createCursor({ api, onClick = () => {}, onDrag = () => {}, onPau
     if (e.type === "drag_toggle") { c.dragging = !c.dragging; return; }
     if (c.dragging) { c.dragging = false; return; } // a single raise releases a drag
     if (!c.visible) return;
-    const target = document.elementFromPoint(c.x, c.y);
+    const { x, y } = lockedPosition(e);
+    const target = document.elementFromPoint(x, y);
     const button = target?.closest("button");
     if (button && !button.disabled) button.click();
-    else onClick(c.x, c.y, target);
+    else onClick(x, y, target);
   }
 
   function frame(now) {
@@ -159,6 +169,8 @@ export function createCursor({ api, onClick = () => {}, onDrag = () => {}, onPau
       const ny = Math.max(0, Math.min(innerHeight - 1, c.y + c.vy * dt));
       if (c.dragging) onDrag(nx - c.x, ny - c.y);
       c.x = nx; c.y = ny;
+      history.push({ t: now, x: c.x, y: c.y });
+      while (history.length && now - history[0].t > 2000) history.shift();
 
       const button = document.elementFromPoint(c.x, c.y)?.closest("button");
       if (button !== hovered) { hovered?.classList.remove("head-hover"); button?.classList.add("head-hover"); hovered = button; }
@@ -191,6 +203,8 @@ export function createCursor({ api, onClick = () => {}, onDrag = () => {}, onPau
     resume() { setPaused(false); },
     get paused() { return c.paused; },
     get dragging() { return c.dragging; },
+    get position() { return { x: c.x, y: c.y }; },
+    lockedPosition,
     stopDrag() { c.dragging = false; },
     setDragEnabled(v) { dragEnabled = v; if (!v) c.dragging = false; },
   };
