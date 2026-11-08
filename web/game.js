@@ -1,4 +1,5 @@
 import { beep, connect, createCursor, deadzone, headXY, saveSettings, settings } from "./input.js";
+import "./display.js";
 import { profiles } from "./settings.js";
 import { createMeter } from "./meter.js";
 import { currentRegion, panoRequest } from "./regions.js";
@@ -416,10 +417,15 @@ function submitGuess() {
   stats.rounds += 1;
   const cheer = t("result.cheer")[stars - 1];
 
+  // guess = a pin, answer = a star: different shapes and labels, not only different colours
+  const star = L.divIcon({ className: "answer-star", html: "★", iconSize: [48, 48], iconAnchor: [24, 24] });
+  const answerMarker = L.marker(game.answer, { icon: star, keyboard: false, interactive: false, alt: t("result.answer", { place: game.answer.name }) })
+    .bindTooltip(t("result.answer", { place: game.answer.name }), { permanent: true, direction: "bottom", offset: [0, 18], className: "marker-label" });
   resultLayer = L.layerGroup([
-    L.circleMarker(game.answer, { radius: 12, color: "#1b1f3b", fillColor: "#2ec4b6", fillOpacity: 1 }),
     L.polyline([game.guess, game.answer], { color: "#ff6b6b", weight: 5, dashArray: "10 8" }),
+    answerMarker,
   ]).addTo(map);
+  guessMarker?.bindTooltip(t("result.yourGuess"), { permanent: true, direction: "top", offset: [-15, -42], className: "marker-label" }).openTooltip();
   $("stars").textContent = "⭐".repeat(stars) + "☆".repeat(5 - stars);
   $("result-title").textContent = cheer;
   $("result-place").textContent = game.answer.name;

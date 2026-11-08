@@ -50,6 +50,17 @@
       </div>
       <p class="muted small-note">Jaw needs a second electrode: start the server with <code>--channels 2,3</code> (brow on 2, jaw on 3). Each signal is calibrated separately below.</p>
       <fieldset class="row">
+        <legend>Display</legend>
+        <label>Colours <select id="theme">
+          <option value="auto">Follow the system (light or dark)</option>
+          <option value="light">Light</option>
+          <option value="dark">Dark</option>
+          <option value="contrast">High contrast (black, white, yellow)</option>
+        </select></label>
+        <label>Text size <input type="range" id="textScale" min="1" max="2" step="0.1"> <span id="textScale-val"></span></label>
+        <label>Cursor size <select id="cursorSize"><option value="S">Small</option><option value="M">Medium</option><option value="L">Large</option></select></label>
+      </fieldset>
+      <fieldset class="row">
         <legend>Read aloud</legend>
         <label><input type="checkbox" id="speechOn"> Read labels, hints and results aloud</label>
         <label>Voice <select id="speechVoice"><option value="">System default</option></select></label>

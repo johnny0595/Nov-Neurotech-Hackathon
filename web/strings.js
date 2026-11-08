@@ -91,6 +91,8 @@ const S = {
     playful: ["Good try!", "Nice!", "Great job!", "Awesome!", "WOW, amazing!"],
   },
   "result.itWas": "It was",
+  "result.yourGuess": "Your guess",
+  "result.answer": "Answer: {place}",
   "result.away": "away",
   "result.points": "points",
   "result.next": "Next ▶",

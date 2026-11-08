@@ -1,22 +1,22 @@
-body.setup { overflow: auto; font-size: 18px; }
+body.setup { overflow: auto; font-size: 0.9rem; }
 .setup header { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; padding: 16px 24px; }
-.setup header h1 { font-size: 32px; margin: 0 12px 0 0; }
+.setup header h1 { font-size: 1.6rem; margin: 0 12px 0 0; }
 .pill { border: 3px solid var(--ink); border-radius: 999px; padding: 2px 14px; font-weight: 700; background: var(--card); color: var(--ink); text-decoration: none; }
 .pill.bad { background: var(--coral); color: #1b1f3b; }
 .pill.good { background: var(--teal); color: #1b1f3b; }
 .setup main { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(460px, 100%), 1fr)); gap: 20px; padding: 0 24px 24px; }
 .panel { background: var(--card); border: 4px solid var(--ink); border-radius: 22px; padding: 16px 22px; }
 .panel.wide { grid-column: 1 / -1; }
-.panel h2 { margin: 0 0 4px; font-size: 26px; }
+.panel h2 { margin: 0 0 4px; font-size: 1.3rem; }
 .muted { color: var(--muted); margin: 0 0 12px; }
 .row { display: flex; flex-wrap: wrap; gap: 14px 22px; align-items: center; margin: 10px 0; }
 .setup button, .setup select, .setup input:not([type]) {
-  font: 700 18px "Baloo 2", system-ui, sans-serif; padding: 8px 16px; border-radius: 14px;
+  font: 700 0.9rem "Baloo 2", system-ui, sans-serif; padding: 8px 16px; border-radius: 14px;
   border: 3px solid var(--ink); background: var(--cream); color: var(--ink);
 }
 .setup button { cursor: pointer; box-shadow: 0 4px 0 var(--ink); }
 .setup button.go { background: var(--coral); color: #1b1f3b; }
-.mono { font: 15px ui-monospace, monospace; margin: 8px 0 0; color: var(--muted); }
+.mono { font: 0.75rem ui-monospace, monospace; margin: 8px 0 0; color: var(--muted); }
 .pad { position: relative; height: 180px; border-radius: 16px; background: var(--cream); border: 3px dashed var(--muted); overflow: hidden; }
 #dot { position: absolute; left: 50%; top: 50%; width: 28px; height: 28px; margin: -14px; border-radius: 50%; background: var(--coral); }
 .meter { position: relative; height: 44px; border-radius: 12px; background: var(--cream); border: 3px solid var(--ink); overflow: hidden; }
@@ -39,15 +39,15 @@ body.setup { overflow: auto; font-size: 18px; }
 .range-ring {
   flex: none; width: 120px; height: 120px; border-radius: 50%; display: grid; place-items: center;
   background: conic-gradient(var(--teal) calc(var(--p) * 360deg), rgba(127,127,127,.25) 0);
-  font-size: 52px; font-weight: 800; position: relative;
+  font-size: 2.6rem; font-weight: 800; position: relative;
 }
 .range-ring::before { content: ""; position: absolute; inset: 14px; border-radius: 50%; background: var(--card); }
 .range-ring span { position: relative; }
-.range-prompt { font-size: 22px; font-weight: 700; margin: 0 0 6px; }
+.range-prompt { font-size: 1.1rem; font-weight: 700; margin: 0 0 6px; }
 .range-values { width: 100%; border-collapse: collapse; margin-top: 12px; text-align: center; font-weight: 700; }
 .range-values th { color: var(--muted); font-weight: 700; }
-.range-values td { font-size: 24px; }
-.small-note { font-size: 15px; margin: -4px 0 8px; }
+.range-values td { font-size: 1.2rem; }
+.small-note { font-size: 0.75rem; margin: -4px 0 8px; }
 /* head section: manual settings tucked away (calibrate.html) */
 .advanced { margin-top: 12px; }
 .advanced summary { cursor: pointer; font-weight: 700; }

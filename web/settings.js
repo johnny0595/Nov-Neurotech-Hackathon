@@ -18,6 +18,10 @@ export const DEFAULTS = {
   // how much the game helps aim: "free" | "assisted" (stronger magnet, bigger confirm zone, zoom in
   // before the pin drops) | "choices" (pick from three named places instead of a map)
   assist: "free",
+  // display (display.js)
+  theme: "auto", // "auto" (follows the system) | "light" | "dark" | "contrast" (black / white / yellow)
+  textScale: 1, // 1 = 100% ... 2 = 200%
+  cursorSize: "M", // "S" | "M" | "L"
   // copy
   tone: "plain", // "plain" (default, for everyone) | "playful" (the original kid-style copy)
   // read-aloud (speech.js)

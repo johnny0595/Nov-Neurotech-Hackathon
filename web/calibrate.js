@@ -1,4 +1,5 @@
 import { beep, connect, headXY, mock, saveSettings, settings } from "./input.js";
+import "./display.js";
 import { profiles } from "./settings.js";
 import { speak, voices } from "./speech.js";
 import { t } from "./strings.js";
@@ -123,7 +124,7 @@ globalThis.speechSynthesis?.addEventListener?.("voiceschanged", fillVoices);
 $("speechTest").onclick = () => speak(t("setup.speech.test"), { force: true });
 
 // ---------- head settings ----------
-const BOUND = ["xAxis", "yAxis", "invertX", "invertY", "speed", "deadzone", "lookSpeed", "cursorMode", "oneEuroMinCutoff", "oneEuroBeta", "magnet", "tone", "speechOn", "speechVoice", "speechRate", "speechVolume", "timing", "input", "assist"];
+const BOUND = ["xAxis", "yAxis", "invertX", "invertY", "speed", "deadzone", "lookSpeed", "cursorMode", "oneEuroMinCutoff", "oneEuroBeta", "magnet", "tone", "speechOn", "speechVoice", "speechRate", "speechVolume", "timing", "input", "assist", "theme", "textScale", "cursorSize"];
 function syncControls() {
   for (const id of BOUND) {
     const el = $(id);
@@ -146,6 +147,11 @@ for (const id of BOUND) {
     saveSettings();
   };
 }
+// show the text size as a percentage
+const showScale = () => { $("textScale-val").textContent = `${Math.round(Number(settings.textScale) * 100)}%`; };
+$("textScale").addEventListener("input", showScale);
+addEventListener("settings-changed", showScale);
+showScale();
 $("zero").onclick = () => api.send({ cmd: "zero" });
 
 // ---------- timing: presets, or custom sliders (0 = never / straight away) ----------
