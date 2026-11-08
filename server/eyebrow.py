@@ -31,6 +31,7 @@ class DetectorParams:
     max_s: float = 1.5
     double_window_s: float = 0.8  # second raise must end within this long after the first
     debounce_s: float = 0.1
+    max_threshold: float = 0.0  # ceiling on the threshold (0 = none): a noisy rest can't push it above real raises
 
     @classmethod
     def load(cls, path: Path = PARAMS_PATH, **overrides) -> "DetectorParams":
@@ -41,6 +42,21 @@ class DetectorParams:
             names = {f.name for f in fields(cls)}
             values = {k: tuple(v) if k == "band_hz" else v for k, v in saved.items() if k in names}
         return cls(**{**values, **overrides})
+
+
+def quiet_part(values: np.ndarray, window: int) -> np.ndarray:
+    """The calmer half of a "relax" recording, judged in `window`-sample chunks.
+
+    People fidget, swallow or speak during the rest period. Those bursts blow up the MAD,
+    and k * MAD then sits above every real raise (session 20261108-102647: 0/20 detected).
+    Keeping the quieter half of the chunks drops the bursts and barely changes a clean rest.
+    """
+    chunks = [values[i:i + window] for i in range(0, len(values) - window + 1, window)]
+    if len(chunks) < 2:
+        return values
+    levels = np.array([np.median(c) for c in chunks])
+    keep = levels <= np.median(levels)
+    return np.concatenate([c for c, k in zip(chunks, keep) if k])
 
 
 class EyebrowDetector:
@@ -64,7 +80,8 @@ class EyebrowDetector:
         if self.baseline is None:
             return None
         median, mad = self.baseline
-        return max(median + self.p.k * mad, 2.0 * median)
+        thr = max(median + self.p.k * mad, 2.0 * median)
+        return min(thr, self.p.max_threshold) if self.p.max_threshold > 0 else thr
 
     def start_calibration(self) -> None:
         self._calib = []
@@ -74,6 +91,7 @@ class EyebrowDetector:
         self._calib = None
         if values.size < self.p.fs:  # need at least 1 s of neutral
             return self.threshold
+        values = quiet_part(values, int(self.p.fs))
         median = float(np.median(values))
         self.baseline = (median, float(np.median(np.abs(values - median))) * 1.4826)
         return self.threshold

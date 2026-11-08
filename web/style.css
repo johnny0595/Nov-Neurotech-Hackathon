@@ -137,3 +137,35 @@ button.big.head-hover:not(:disabled), button.big:hover:not(:disabled) {
 }
 .road-edge.left { left: 16px; }
 .road-edge.right { right: 16px; }
+
+/* explorer (index.html) */
+.place { font-size: 22px; max-width: 45vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mic {
+  position: absolute; top: 76px; right: 16px; z-index: 400; pointer-events: none;
+  background: var(--card); border: 3px solid var(--ink); border-radius: 999px; padding: 4px 16px; font-size: 18px; font-weight: 700;
+  max-width: 50vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.goto-form { position: fixed; top: 50%; left: 50%; translate: -50% -50%; z-index: 700; }
+.goto-form input {
+  font: inherit; font-size: 28px; width: min(640px, 90vw); padding: 12px 20px;
+  border: 5px solid var(--ink); border-radius: 999px; background: var(--card);
+}
+
+/* walk / drive switch (game.js drawModeIndicator) */
+.mode-switch {
+  display: flex; flex: none; border: 5px solid var(--ink); border-radius: 999px; overflow: hidden;
+  background: var(--card); box-shadow: 0 6px 0 var(--ink);
+}
+.mode-switch > div {
+  display: flex; align-items: center; gap: 8px; padding: 4px 22px; font-size: 28px; font-weight: 800;
+  color: var(--muted); opacity: .55; transition: background .2s, color .2s, opacity .2s;
+}
+.topbar .mode-switch span { font-size: 36px; background: none; border: 0; padding: 0; border-radius: 0; }
+.mode-switch > div + div { border-left: 4px solid var(--ink); }
+.mode-switch #mode-walk.on { background: var(--teal); color: #1b1f3b; opacity: 1; }
+.mode-switch #mode-drive.on { background: var(--sun); color: #1b1f3b; opacity: 1; }
+.mode-switch small { font-size: 16px; font-weight: 700; margin-left: 4px; }
+.mode-switch.moving #mode-drive.on { background: var(--coral); }
+.mode-switch.moving #mode-drive span { animation: drive-bob .6s ease-in-out infinite alternate; }
+@keyframes drive-bob { from { translate: -3px 0; } to { translate: 3px 0; } }
+@media (max-width: 700px) { .mode-switch > div { font-size: 18px; padding: 2px 12px; } .mode-switch > div span { font-size: 22px; } }

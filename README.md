@@ -1,17 +1,24 @@
-# Brow Guessr
+# Brow Explorer
 
-A GeoGuessr-style game for kids who can't use a mouse. **Head tilt** steers Street View and an on-screen cursor. **Raising your eyebrows** clicks. Input comes from the NeuroPawn Knight IMU board: the IMU on the headset for head tilt, plus one forehead EMG electrode for the eyebrows.
+Hands-free Street View for people with ALS or others who can't use their hands. It opens on the street outside the building you're in, and you look around, walk or drive using only head movement, eyebrow raises and your voice. Input comes from the NeuroPawn Knight IMU board: the IMU on the headset for head movement, plus one forehead EMG electrode for the eyebrows.
 
-| Gesture | Effect |
+| Input | Effect |
 |---|---|
-| Tilt head | Look around in Street View. On the map, move the cursor. |
-| Raise eyebrows once | In Street View: walk forward along the road you're facing. On the map: drop a pin or press a button. |
-| Raise eyebrows twice quickly | In Street View: go to the guess map. On the map: grab the map and move it; raise once to let go. |
-| Look at the top-right corner for 2 s | Pause |
+| Turn or tilt your head | Look around (like a joystick: the further you turn, the faster the view turns) |
+| Raise eyebrows once | **Walking:** take one step along the road in view. **Car:** start or stop driving. |
+| Raise eyebrows twice quickly | Switch between walking 🚶 and the car 🚗 |
+| Say "go to …" a place | Travel there, e.g. "go to the Grand Canyon" or "take me to Paris" |
+| Say "go home" / "surprise me" | Back to the starting street / a random famous place |
+| Say "stop", "walk", "drive", "pause" | Park the car / switch mode / pause |
 | Helper presses Space or Esc | Pause or resume |
+| Helper presses `/` | Type a place instead of saying it |
 | Any raise while paused | Resume. The head's neutral position is reset at the same time. |
 
-The cursor is drawn inside the web page. It never moves the computer's real mouse, so it can't get lost or get stuck away from the off switch.
+A green arrow shows where a raise will take you. If no road is in front of you, a tag at the edge of the screen points to the nearest one. While driving, turning your head steers at junctions. If the road ends, the car parks itself.
+
+**Where it starts:** `START_LOCATION` in `.env` (`lat,lng` or an address, set once by a caregiver). If it's empty, the browser's location is used (the browser asks once), and if that isn't available, a default place. It snaps to the nearest Google Street View photo.
+
+**Voice** uses the browser's speech recognition. That needs Chrome or Edge and microphone permission, and the audio is processed by the browser vendor's speech service. Place names are looked up with Google's geocoder if your key allows the Geocoding API, otherwise with OpenStreetMap Nominatim (free, no key).
 
 ## Run it
 
@@ -23,7 +30,7 @@ open http://localhost:8000/                 # the game
 ```
 
 You can work without the headset:
-- `http://localhost:8000/?mock=1`: the mouse position stands in for head tilt. Press **C** for one eyebrow raise and **D** for a double raise.
+- `http://localhost:8000/?mock=1`: the mouse position stands in for head movement. Press **C** for one eyebrow raise and **D** for a double raise.
 - `uv run python -m server.app --replay data/sessions/<dir>`: replays a recorded session in real time.
 
 ## Hardware setup
