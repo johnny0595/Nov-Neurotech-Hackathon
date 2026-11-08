@@ -101,8 +101,9 @@ export function createCursor({ api, onClick = () => {}, onDrag = () => {}, onPau
   corner.innerHTML = "<span>⏸</span><small>look here to pause</small>";
   const overlay = document.createElement("div");
   overlay.className = "pause-overlay";
-  overlay.innerHTML = `<div><h1>Paused</h1><p>Look straight ahead,<br>then <b>raise your eyebrows</b> to play.</p><small>Helper: press Space</small></div>`;
+  overlay.innerHTML = `<div><h1>Paused</h1><p>Look straight ahead,<br>then <b>raise your eyebrows</b> to play.</p><small>Helper: press Space or click here</small></div>`;
   document.body.append(corner, overlay, el);
+  overlay.addEventListener("click", () => setPaused(false)); // mouse fallback: click to resume
 
   const c = { x: innerWidth / 2, y: innerHeight / 2, vx: 0, vy: 0, paused: true, dragging: false, visible: true, head: {} };
   let hovered = null;

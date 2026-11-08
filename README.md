@@ -8,8 +8,10 @@ A GeoGuessr-style game set in **Raleigh, NC**, for kids who can't use a mouse. *
 | Raise eyebrows | Click: start the game, go to the map, drop a pin, or press a button (＋/－ zoom toward the map's centre) |
 | Raise eyebrows twice quickly | Only with `--double`: grab the map and move it. Raise once to let go. |
 | Look at the top-right corner for 2 s | Pause |
-| Helper presses Space or Esc | Pause or resume |
+| Helper presses Space or Esc, or clicks the pause screen | Pause or resume |
 | Any raise while paused | Resume. The head's neutral position is reset at the same time. |
+
+**Mouse fallback** (no headset, or a helper wants to show something): click **▶ Play**. On the look screen, drag to look around, scroll to zoom, click the arrows on the road to walk, and click **🗺️ Map**. On the map, click to drop a pin and click **Guess!**. The head only turns the camera while it's tilted, and not for 4 s after any mouse drag, so the mouse and the head never fight over the camera.
 
 The cursor is drawn inside the web page. It never moves the computer's real mouse, so it can't get lost or get stuck away from the off switch.
 

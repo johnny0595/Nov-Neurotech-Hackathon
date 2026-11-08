@@ -143,6 +143,7 @@ async function startGame() {
 
 $("play").onclick = startGame;
 $("look-again").onclick = () => show("look");
+$("to-map").onclick = showGuess; // mouse fallback for "raise to go to the map"
 $("zoom-in").onclick = () => map.zoomIn();
 $("zoom-out").onclick = () => map.zoomOut();
 $("submit-guess").onclick = () => {
@@ -240,7 +241,19 @@ async function newRound() {
   show("look");
 }
 
+// Mouse fallback: anyone with a mouse can explore Street View directly (drag to look around, scroll to
+// zoom, click the arrows to walk). While the mouse is in use, and for a few seconds after, the head
+// doesn't steer, so the two never fight over the camera.
+const MANUAL_HOLD_MS = 4000;
+let manualUntil = 0;
+const markManual = () => { manualUntil = performance.now() + MANUAL_HOLD_MS; };
+$("pano").addEventListener("pointerdown", markManual, true);
+$("pano").addEventListener("pointermove", (e) => { if (e.buttons) markManual(); }, true);
+$("pano").addEventListener("wheel", markManual, { capture: true, passive: true });
+
 // Head steers the camera: tilt = turning speed, like a joystick. Deadzone keeps a still head still.
+// It starts from the panorama's current view, so it picks up wherever the mouse left it, and only
+// touches the camera while the head is actually tilted.
 // The same loop counts time spent looking (not paused) and shows the location's hint after 30 s.
 let lastFrame = performance.now();
 function steer(now) {
@@ -250,10 +263,15 @@ function steer(now) {
   if (game.mode === "look" && !cursor.paused) {
     game.lookSeconds += Math.min(1, elapsed); // real time, even when frames are slow
     if (game.answer?.hint && game.lookSeconds >= HINT_AFTER_S) $("loc-hint").hidden = false;
-    if (pano) {
-      const [x, y] = headXY(head);
-      game.pov.heading = (game.pov.heading + deadzone(x, settings.deadzone) * settings.lookSpeed * dt + 360) % 360;
-      game.pov.pitch = Math.max(-35, Math.min(35, game.pov.pitch - deadzone(y, settings.deadzone) * settings.lookSpeed * 0.5 * dt));
+    const [x, y] = headXY(head);
+    const dx = deadzone(x, settings.deadzone);
+    const dy = deadzone(y, settings.deadzone);
+    if (pano && (dx || dy) && now > manualUntil) {
+      const current = pano.getPov();
+      game.pov = {
+        heading: (current.heading + dx * settings.lookSpeed * dt + 360) % 360,
+        pitch: Math.max(-35, Math.min(35, current.pitch - dy * settings.lookSpeed * 0.5 * dt)),
+      };
       pano.setPov(game.pov);
     }
   }
@@ -272,8 +290,10 @@ async function loadGoogleMaps() {
   });
   svService = new google.maps.StreetViewService();
   pano = new google.maps.StreetViewPanorama($("pano"), {
-    disableDefaultUI: true, addressControl: false, showRoadLabels: false, linksControl: false,
-    clickToGo: false, motionTracking: false, motionTrackingControl: false, scrollwheel: false,
+    // No address or road names (they'd give the answer away). Walking arrows, click-to-go and scroll
+    // zoom are on for the mouse fallback; the head cursor is hidden on this screen, so head play is unchanged.
+    disableDefaultUI: true, addressControl: false, showRoadLabels: false, linksControl: true,
+    clickToGo: true, motionTracking: false, motionTrackingControl: false, scrollwheel: true,
   });
   return true;
 }
