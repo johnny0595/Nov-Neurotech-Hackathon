@@ -170,6 +170,7 @@ class Hub:
             "axes_learned": self.head_axes.ready,
             "envelope": round(self.detector.envelope, 2),
             "threshold": self.detector.threshold,
+            "noisy": self.detector.noisy,
             "k": self.detector.p.k,
             "rate_hz": round(self.rate_hz, 1),
             "recording": self.recorder.active,

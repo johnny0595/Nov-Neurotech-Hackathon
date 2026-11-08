@@ -22,7 +22,8 @@ const api = connect({
   onState(s) {
     head = s;
     cursor.setHead(s);
-    $("status").textContent = s.status === "live" ? "" : s.status ?? "";
+    $("status").textContent = s.status !== "live" ? s.status ?? ""
+      : s.noisy ? "⚠ Eyebrow sensor is noisy: check the forehead electrode" : "";
   },
   onEvent(e) {
     if (cursor.paused) return cursor.handleEvent(e); // any raise resumes (and re-centres the head)
