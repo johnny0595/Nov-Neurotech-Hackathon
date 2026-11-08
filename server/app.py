@@ -178,6 +178,12 @@ def create_app(hub: Hub) -> FastAPI:
         except WebSocketDisconnect:
             hub.clients.discard(ws)
 
+    @app.middleware("http")
+    async def no_stale_js(request, call_next):
+        response = await call_next(request)
+        response.headers["Cache-Control"] = "no-cache"  # revalidate via ETag, so edits show up on reload
+        return response
+
     app.mount("/", StaticFiles(directory=ROOT / "web", html=True), name="web")
     return app
 

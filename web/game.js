@@ -114,7 +114,7 @@ async function pickLocation() {
     if (!svService) return { ...loc, panoId: null };
     try {
       const { data } = await svService.getPanorama({
-        location: loc, radius: 1000, source: google.maps.StreetViewSource.OUTDOOR,
+        location: loc, radius: 1000, sources: [google.maps.StreetViewSource.GOOGLE], // Google car imagery only; user photospheres are often a wall or a van
         preference: google.maps.StreetViewPreference.NEAREST,
       });
       const p = data.location.latLng;
@@ -163,7 +163,7 @@ async function loadGoogleMaps() {
   await new Promise((resolve, reject) => {
     window.__mapsReady = resolve;
     const s = document.createElement("script");
-    s.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(mapsKey)}&v=weekly&callback=__mapsReady`;
+    s.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(mapsKey)}&v=weekly&loading=async&callback=__mapsReady`;
     s.onerror = reject;
     document.head.append(s);
   });
