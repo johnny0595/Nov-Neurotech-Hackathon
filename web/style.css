@@ -27,7 +27,7 @@ code { font-size: 0.85em; background: rgba(127,127,127,.15); padding: 1px 6px; b
 
 /* ---------- buttons: huge targets, unmistakable hover from the head cursor ---------- */
 button.big {
-  min-width: 220px; min-height: 120px; padding: 16px 32px;
+  min-width: 200px; min-height: 140px; padding: 16px 32px;
   font: 800 34px/1 "Baloo 2", system-ui, sans-serif;
   color: var(--ink); background: var(--card);
   border: 6px solid var(--ink); border-radius: var(--radius);
@@ -35,7 +35,7 @@ button.big {
   cursor: pointer; transition: transform .12s, box-shadow .12s, background .12s;
 }
 button.big.primary { background: var(--sun); color: #1b1f3b; }
-button.big.round { min-width: 120px; width: 120px; border-radius: 50%; font-size: 56px; }
+button.big.round { min-width: 140px; width: 140px; border-radius: 50%; font-size: 60px; }
 button.big:disabled { opacity: .4; box-shadow: none; }
 button.big.head-hover:not(:disabled), button.big:hover:not(:disabled) {
   transform: translateY(-4px) scale(1.06);
@@ -57,15 +57,17 @@ button.big.head-hover:not(:disabled), button.big:hover:not(:disabled) {
 .head-cursor.flash-drag { animation: pop .5s ease-out 2; }
 @keyframes pop { 0% { scale: 1; } 40% { scale: 1.7; } 100% { scale: 1; } }
 
-.pause-corner {
-  position: fixed; top: 0; right: 0; width: 170px; height: 150px; z-index: 900;
-  display: grid; place-content: center; text-align: center;
-  background: conic-gradient(var(--coral) calc(var(--p, 0) * 360deg), rgba(27,31,59,.55) 0);
-  color: #fff; border-bottom-left-radius: 60px;
+/* Pause: hold the cursor on the bottom-left tile for 2 s (never the top: looking up triggers raises) */
+.pause-tile {
+  position: fixed; left: 16px; bottom: 16px; width: 160px; height: 160px; z-index: 900;
+  display: grid; place-content: center; text-align: center; border-radius: 32px; color: #fff;
+  background: conic-gradient(var(--coral) calc(var(--p, 0) * 360deg), rgba(27,31,59,.72) 0);
+  box-shadow: inset 0 0 0 10px rgba(27,31,59,.72);
 }
-.pause-corner span { font-size: 48px; line-height: 1; }
-.pause-corner small { font-size: 15px; opacity: .9; }
-.pause-corner.hidden { display: none; }
+.pause-tile span { font-size: 44px; line-height: 1; }
+.pause-tile b { font-size: 26px; line-height: 1.1; }
+.pause-tile small { font-size: 14px; opacity: .85; }
+.pause-tile.hidden { display: none; }
 
 .pause-overlay {
   position: fixed; inset: 0; z-index: 950; display: none; place-items: center; text-align: center;
@@ -78,7 +80,7 @@ button.big.head-hover:not(:disabled), button.big:hover:not(:disabled) {
 
 /* ---------- game layout ---------- */
 .topbar {
-  position: fixed; top: 0; left: 0; right: 170px; z-index: 500; display: flex; gap: 24px; align-items: center;
+  position: fixed; top: 0; left: 0; right: 0; z-index: 500; /* display only: the top ~12% has no click targets */ display: flex; gap: 24px; align-items: center;
   padding: 12px 24px; font-weight: 800; font-size: 30px; pointer-events: none;
 }
 .topbar span:not(.status) { background: var(--card); border: 4px solid var(--ink); border-radius: 999px; padding: 2px 22px; }
@@ -91,9 +93,18 @@ button.big.head-hover:not(:disabled), button.big:hover:not(:disabled) {
   background: var(--card); border: 4px solid var(--ink); border-radius: 999px;
   padding: 10px 28px; font-size: 26px; text-align: center; max-width: calc(100% - 32px);
 }
-.hint.small { bottom: 170px; font-size: 20px; }
-.action-row { position: absolute; left: 0; right: 0; bottom: 24px; z-index: 400; display: flex; justify-content: center; gap: 48px; }
-.map-buttons { position: absolute; left: 24px; top: 50%; translate: 0 -50%; z-index: 400; display: grid; gap: 28px; }
+.hint.small { bottom: 188px; font-size: 20px; }
+/* Every screen's actions: one row, bottom-centre, 140 px tall, 48 px apart (easy to reach by tilting down) */
+.action-row {
+  position: absolute; left: 0; right: 0; bottom: 24px; z-index: 400;
+  display: flex; justify-content: center; align-items: center; gap: 48px; pointer-events: none;
+}
+.action-row > * { pointer-events: auto; }
+.look-row .hint { position: static; translate: none; }
+.top-band {
+  position: absolute; top: 0; left: 0; right: 0; height: 12vh; z-index: 450; pointer-events: none;
+  background: linear-gradient(rgba(20,22,43,.45), rgba(20,22,43,0));
+}
 .card-screen { position: fixed; inset: 0; z-index: 600; display: grid; place-items: end center; padding-bottom: 32px; pointer-events: none; }
 .card {
   pointer-events: auto; background: var(--card); border: 6px solid var(--ink); border-radius: var(--radius);
@@ -127,14 +138,11 @@ button.big.head-hover:not(:disabled), button.big:hover:not(:disabled) {
   30% { background: var(--coral); scale: 1.04; }
   100% { background: var(--card); scale: 1; }
 }
-#corner-meter { position: fixed; left: 16px; bottom: 16px; z-index: 450; width: 200px; pointer-events: none; }
+#corner-meter { position: fixed; left: 16px; bottom: 188px; z-index: 450; width: 160px; pointer-events: none; } /* just above the pause tile */
 .brow-meter.compact .brow-meter-track { height: 26px; border-width: 4px; box-shadow: 0 3px 0 var(--ink); }
 .brow-meter.compact .brow-meter-mark { width: 5px; top: -4px; bottom: -4px; }
 .brow-meter.compact .brow-meter-label { margin-top: 2px; font-size: 15px; background: var(--card); border-radius: 8px; padding: 0 8px; justify-self: start; display: inline-block; }
 
-/* ---------- look screen: mouse fallback button (head players raise instead) ---------- */
-.look-to-map { position: absolute; right: 24px; bottom: 24px; z-index: 400; min-width: 180px; }
-#look .hint { max-width: calc(100% - 2 * 240px); }
 
 /* ---------- look-screen hint ---------- */
 .loc-hint {
@@ -152,23 +160,22 @@ button.big.head-hover:not(:disabled), button.big:hover:not(:disabled) {
 .result-numbers small { font-size: 18px; color: var(--muted); }
 .card p.fact { font-size: 22px; background: rgba(46,196,182,.18); border-radius: 16px; padding: 8px 16px; margin: 0 0 18px; }
 .card p.fact::before { content: "🤓 "; }
-.final-screen { position: fixed; inset: 0; z-index: 700; display: flex; padding: 16px; background: var(--cream); overflow: auto; }
-.final-screen .card { margin: auto; } /* centred, but scrolls instead of clipping on short screens */
+.final-screen { position: fixed; inset: 0; z-index: 700; display: flex; padding: 12vh 16px 196px; background: var(--cream); overflow: auto; }
+.final-screen .card { margin: 0 auto auto; } /* below the top band, above the button row; scrolls if needed */
 .final-screen .card h1 { font-size: 72px; }
-.final-buttons { display: flex; flex-wrap: wrap; justify-content: center; gap: 28px; }
 .helper-panel { margin-top: 24px; text-align: left; border-top: 4px dashed var(--muted); padding-top: 12px; }
 .helper-panel dl { display: grid; grid-template-columns: 1fr auto; gap: 6px 24px; margin: 0; font-size: 22px; }
 .helper-panel dt { color: var(--muted); }
 .helper-panel dd { margin: 0; font-weight: 800; text-align: right; }
 
 @media (max-width: 1100px) {
-  #look .hint { bottom: 170px; max-width: calc(100% - 32px); }
+  .look-row .hint { font-size: 20px; }
 }
 @media (max-width: 700px) {
   .result-numbers > div { min-width: 120px; }
   .loc-hint { max-width: calc(100% - 32px); top: 160px; font-size: 22px; }
   button.big { min-width: 140px; font-size: 24px; }
-  .action-row { gap: 16px; }
+  .action-row { gap: 40px; flex-wrap: wrap; }
   .topbar { font-size: 18px; gap: 8px; }
 }
 @media (max-height: 800px) {

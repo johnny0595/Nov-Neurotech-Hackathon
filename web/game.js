@@ -117,7 +117,7 @@ function show(mode) {
   $("guess").hidden = !onMap;
   $("result").hidden = mode !== "result";
   $("final").hidden = mode !== "final";
-  document.querySelectorAll("#guess .action-row, #guess .map-buttons, #guess .hint").forEach((el) => (el.hidden = mode !== "guess"));
+  document.querySelectorAll("#guess .action-row, #guess .hint, #guess .top-band").forEach((el) => (el.hidden = mode !== "guess"));
   document.body.classList.toggle("at-start", mode === "start");
   $("corner-meter").hidden = mode === "start";
   cursor.setVisible(mode !== "look" && mode !== "start");

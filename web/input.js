@@ -104,18 +104,20 @@ export function beep(freq = 660, ms = 90) {
 }
 
 const DWELL_MS = 2000;
+export const NO_CLICK_TOP = 0.12; // top 12% of the screen: looking up makes people raise their brows
 
 /**
  * On-page cursor driven by head tilt. It never touches the OS pointer, so it cannot escape the page.
- * Pause: Space/Esc (helper), or dwell on the top-right corner for 2 s. Any eyebrow raise resumes.
+ * Pause: Space/Esc (helper), or hold the cursor on the bottom-left "Pause" tile for 2 s. Any eyebrow raise resumes.
+ * Head clicks in the top 12% of the screen are ignored (looking up causes involuntary raises).
  * Resuming recenters the cursor and re-zeros the head's neutral pose.
  */
 export function createCursor({ api, onClick = () => {}, onDrag = () => {}, onPauseChange = () => {} }) {
   const el = document.createElement("div");
   el.className = "head-cursor";
   const corner = document.createElement("div");
-  corner.className = "pause-corner";
-  corner.innerHTML = "<span>⏸</span><small>look here to pause</small>";
+  corner.className = "pause-tile";
+  corner.innerHTML = "<span>⏸</span><b>Pause</b><small>hold here</small>";
   const overlay = document.createElement("div");
   overlay.className = "pause-overlay";
   overlay.innerHTML = `<div><h1>Paused</h1><p>Look straight ahead,<br>then <b>raise your eyebrows</b> to play.</p><small>Helper: press Space or click here</small></div>`;
@@ -166,6 +168,7 @@ export function createCursor({ api, onClick = () => {}, onDrag = () => {}, onPau
     if (c.dragging) { c.dragging = false; return; } // a single raise releases a drag
     if (!c.visible) return;
     const { x, y } = lockedPosition(e);
+    if (y < innerHeight * NO_CLICK_TOP) return; // nothing up there is clickable
     const target = document.elementFromPoint(x, y);
     const button = target?.closest("button");
     if (button && !button.disabled) button.click();
@@ -206,7 +209,7 @@ export function createCursor({ api, onClick = () => {}, onDrag = () => {}, onPau
       if (button !== hovered) { hovered?.classList.remove("head-hover"); button?.classList.add("head-hover"); hovered = button; }
 
       const r = corner.getBoundingClientRect();
-      const inCorner = c.x >= r.left && c.y <= r.bottom;
+      const inCorner = c.x >= r.left && c.x <= r.right && c.y >= r.top && c.y <= r.bottom;
       dwellStart = inCorner ? (dwellStart ?? now) : null;
       const progress = dwellStart ? Math.min(1, (now - dwellStart) / DWELL_MS) : 0;
       corner.style.setProperty("--p", progress);

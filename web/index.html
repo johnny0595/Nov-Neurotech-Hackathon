@@ -22,6 +22,8 @@
       <h1 class="title">Brow Guessr</h1>
       <p class="tagline">Raise your eyebrows to play!</p>
       <div id="start-meter"></div>
+    </div>
+    <div class="action-row">
       <button id="play" class="big primary">▶ Play</button>
     </div>
   </section>
@@ -37,18 +39,19 @@
       <p>Use the hint and guess on the map!</p>
     </div>
     <div id="loc-hint" class="loc-hint" hidden>💡 Hint: <span id="loc-hint-text"></span></div>
-    <div class="hint">Turn your head to look around · <b>Raise eyebrows</b> to guess on the map 🗺️</div>
-    <button id="to-map" class="big primary look-to-map" title="Mouse: drag to look around, click arrows to walk">🗺️ Map</button>
+    <div class="action-row look-row">
+      <div class="hint">Turn your head to look around · <b>Raise eyebrows</b> to guess on the map 🗺️</div>
+      <button id="to-map" class="big primary" title="Mouse: drag to look around, click arrows to walk">🗺️ Map</button>
+    </div>
   </section>
 
   <section id="guess" class="screen" hidden>
     <div id="map"></div>
-    <div class="map-buttons">
-      <button id="zoom-in" class="big round" aria-label="Zoom in">＋</button>
-      <button id="zoom-out" class="big round" aria-label="Zoom out">－</button>
-    </div>
+    <div class="top-band" aria-hidden="true"></div>
     <div class="action-row">
-      <button id="look-again" class="big">👀 Look again</button>
+      <button id="look-again" class="big">👀 Look</button>
+      <button id="zoom-out" class="big round" aria-label="Zoom out">－</button>
+      <button id="zoom-in" class="big round" aria-label="Zoom in">＋</button>
       <button id="submit-guess" class="big primary" disabled>📍 Guess!</button>
     </div>
     <div id="guess-hint" class="hint small">Raise once = drop pin / press · Raise twice = grab &amp; move the map</div>
@@ -73,13 +76,13 @@
       <div class="stars">🏆</div>
       <h1 id="final-score"></h1>
       <p id="final-detail"></p>
-      <div class="final-buttons">
-        <button id="play-again" class="big primary">Play again ▶</button>
-        <button id="helper-toggle" class="big" aria-expanded="false" aria-controls="helper-panel">📋 Helper summary</button>
-      </div>
       <div id="helper-panel" class="helper-panel" hidden>
         <dl id="helper-stats"></dl>
       </div>
+    </div>
+    <div class="action-row">
+      <button id="helper-toggle" class="big" aria-expanded="false" aria-controls="helper-panel">📋 Helper</button>
+      <button id="play-again" class="big primary">Play again ▶</button>
     </div>
   </section>
 
