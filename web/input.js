@@ -17,6 +17,8 @@ export const mock = new URLSearchParams(location.search).has("mock");
 /** Head tilt in degrees as [x, y]; right and down are positive. */
 export function headXY(state) {
   if (mock) return [state.roll || 0, state.pitch || 0];
+  // Learned axes from the setup page's "Learn my head movements" (server/head_axes.py) beat the manual axis settings.
+  if (state.hx !== undefined) return [state.hx, state.hy];
   const pick = (axis, invert) => (state[axis] || 0) * (invert ? -1 : 1);
   return [pick(settings.xAxis, settings.invertX), pick(settings.yAxis, settings.invertY)];
 }

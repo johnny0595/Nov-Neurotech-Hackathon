@@ -21,7 +21,8 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
 
 from .board import Board
-from .eyebrow import EyebrowDetector
+from .eyebrow import PARAMS_PATH, DetectorParams, EyebrowDetector
+from .head_axes import AXES_PATH, HeadAxes, HeadTracker
 from .orientation import OrientationEstimator
 from .recording import Recorder
 from .rows import EXG_ROWS, SAMPLING_RATE_HZ
@@ -29,6 +30,8 @@ from .rows import EXG_ROWS, SAMPLING_RATE_HZ
 ROOT = Path(__file__).resolve().parent.parent
 PROFILE_PATH = ROOT / "data" / "profile.json"
 SEND_HZ = 60
+STALL_SECONDS = 3.0  # no samples for this long = the board stopped (usually stuck at "Scanning for IMU...")
+RECONNECT_EVERY_S = 5.0
 
 
 class ReplaySource:
@@ -60,20 +63,33 @@ class Hub:
         self.source = source
         self.channel = channel
         self.orientation = OrientationEstimator()
-        self.detector = EyebrowDetector()
+        self.detector = EyebrowDetector(DetectorParams.load(fs=SAMPLING_RATE_HZ))
+        if PARAMS_PATH.exists():
+            print(f"eyebrow detector: using tuned settings from {PARAMS_PATH.name}")
         self.recorder = Recorder()
         self.clients: set[WebSocket] = set()
         self.status = "connecting"
         self.rate_hz = 0.0
         self._rate_window: list[tuple[float, int]] = []
         self.last_angles = {"roll": 0.0, "pitch": 0.0, "yaw": 0.0}
+        self.head_axes = HeadAxes.load()
+        if self.head_axes.gyro_bias is not None:
+            self.orientation.set_gyro_bias(self.head_axes.gyro_bias)
+        self.tracker = HeadTracker()
+        self.tracker.nod = self.head_axes.nod
+        self.head_xy: tuple[float, float] | None = None
+        self._axes_phase: str | None = None  # which guided head-calibration step is collecting
+        self._axes_data: dict[str, list] = {}
         self._load_profile()
 
     def _load_profile(self) -> None:
         if PROFILE_PATH.exists():
             profile = json.loads(PROFILE_PATH.read_text())
             self.detector.baseline = tuple(profile["baseline"]) if profile.get("baseline") else None
-            self.detector.p.k = float(profile.get("k", self.detector.p.k))
+            # A newer training run wins over an older slider setting.
+            trained_is_newer = PARAMS_PATH.exists() and PARAMS_PATH.stat().st_mtime >= PROFILE_PATH.stat().st_mtime
+            if not trained_is_newer:
+                self.detector.p.k = float(profile.get("k", self.detector.p.k))
 
     def _save_profile(self) -> None:
         PROFILE_PATH.parent.mkdir(parents=True, exist_ok=True)
@@ -86,18 +102,55 @@ class Hub:
         except Exception as exc:  # keep serving the web app so mock mode and the error message still work
             self.status = f"board error: {exc}"
             return
+        last_data = last_attempt = time.monotonic()
         while True:
             await asyncio.sleep(1 / SEND_HZ)
-            batch = self.source.read()
+            try:
+                batch = self.source.read()
+            except Exception:
+                batch = np.zeros((1, 0))
+            now = time.monotonic()
+            if batch.shape[1]:
+                last_data = now
+                if self.status != "live":
+                    self.status = "live"
+            elif now - last_data > STALL_SECONDS:
+                self.status = (f"board stopped sending data ({now - last_data:.0f} s). Unplug its USB for 5 s and plug it back in; "
+                               "it reconnects by itself, then recenter (look straight + raise eyebrows).")
+                if now - last_attempt > RECONNECT_EVERY_S:
+                    last_attempt = now
+                    await self.broadcast({"t": "state", **self.snapshot(), "events": []})  # show the message before the slow reconnect
+                    if await asyncio.to_thread(self._reconnect):
+                        last_data = time.monotonic()
+                        self.status = "live"
             events = self.process(batch)
             await self.broadcast({"t": "state", **self.snapshot(), "events": events})
+
+    def _reconnect(self) -> bool:
+        try:
+            self.source.close()
+            self.source.connect()
+            self.orientation.restart_settling()
+            print("board reconnected")
+            return True
+        except Exception as exc:
+            print(f"reconnect failed: {exc}")
+            return False
 
     def process(self, batch: np.ndarray) -> list[dict]:
         if batch.shape[1] == 0:
             return []
         for column in batch.T:
             o = self.orientation.update(column)
+            self.tracker.update(self.orientation.q, np.array(o.gyro), o.dt, still=self.orientation.still and self._axes_phase is None)
+            if self._axes_phase in ("nod", "turn"):
+                self._axes_data[self._axes_phase].append(o.gyro)
+            elif self._axes_phase == "up":
+                self._axes_data["up"].append(self.tracker.g.copy())
+            elif self._axes_phase == "right":
+                self._axes_data["right"].append(self.tracker.raw_x())
         self.last_angles = {"roll": o.roll, "pitch": o.pitch, "yaw": o.yaw}
+        self.head_xy = self.tracker.xy(self.head_axes)
         self.recorder.append(batch)
         events = self.detector.feed(batch[EXG_ROWS[self.channel - 1]])
         for event in events:
@@ -112,6 +165,9 @@ class Hub:
     def snapshot(self) -> dict:
         return {
             **{k: round(v, 2) for k, v in self.last_angles.items()},
+            # learned head axes (see head_axes.py); the web pages prefer these over roll/pitch/yaw
+            **({"hx": round(self.head_xy[0], 2), "hy": round(self.head_xy[1], 2)} if self.head_xy else {}),
+            "axes_learned": self.head_axes.ready,
             "envelope": round(self.detector.envelope, 2),
             "threshold": self.detector.threshold,
             "k": self.detector.p.k,
@@ -132,6 +188,32 @@ class Hub:
         cmd = msg.get("cmd")
         if cmd == "zero":
             self.orientation.zero_level()
+            self.tracker.zero()
+        elif cmd == "axes_phase":  # guided head calibration: nod, turn, up, right, then finish
+            phase = msg.get("phase")
+            if phase in ("nod", "turn", "up", "right"):
+                self._axes_data[phase] = []
+                if phase == "up":
+                    self._axes_data["up_ref"] = None if self.tracker.g0 is None else self.tracker.g0.copy()
+                self._axes_phase = phase
+            else:
+                self._axes_phase = None
+            if phase == "begin":
+                self._axes_data = {}
+        elif cmd == "axes_finish":
+            self._axes_phase = None
+            axes, report = HeadAxes.fit(self._axes_data)
+            if axes is not None:
+                axes.gyro_bias = self.orientation.gyro_bias.copy()
+                report["gyro_bias_deg_s"] = [round(float(v), 2) for v in np.degrees(axes.gyro_bias)]
+                self.head_axes = axes
+                self.tracker.nod = axes.nod
+                axes.save(AXES_PATH, report)
+            await ws.send_text(json.dumps({"t": "axes", **report}))
+        elif cmd == "axes_clear":
+            self.head_axes = HeadAxes(gyro_bias=self.orientation.gyro_bias.copy())
+            self.tracker.nod = None
+            AXES_PATH.unlink(missing_ok=True)
         elif cmd == "calibrate_start":
             self.detector.start_calibration()
             self.recorder.mark("neutral", "start")

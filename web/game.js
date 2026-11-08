@@ -1,8 +1,9 @@
-import { connect, createCursor, deadzone, headXY, settings } from "./input.js";
+import { beep, connect, createCursor, deadzone, headXY, settings } from "./input.js";
 import { LOCATIONS } from "./locations.js";
 
 const ROUNDS = 5;
 const $ = (id) => document.getElementById(id);
+const LOOK_HINT = $("look-hint").innerHTML;
 
 const game = { mode: "look", round: 0, total: 0, answer: null, guess: null, pov: { heading: 0, pitch: 0 }, used: new Set() };
 let pano = null;
@@ -19,8 +20,11 @@ const api = connect({
     $("status").textContent = state.status === "live" ? "" : state.status ?? "";
   },
   onEvent(e) {
-    // In LOOK mode the head steers the camera, so a single raise just means "go to the map".
-    if (game.mode === "look" && !cursor.paused && e.type === "click") return showGuess();
+    // In LOOK mode the head steers the camera: a single raise walks forward, a double raise opens the map.
+    if (game.mode === "look" && !cursor.paused) {
+      if (e.type === "click") { beep(660); return walkForward(); }
+      if (e.type === "drag_toggle") { beep(880); return showGuess(); }
+    }
     cursor.handleEvent(e);
   },
 });
@@ -64,6 +68,56 @@ function show(mode) {
 
 function showGuess() {
   show("guess");
+}
+
+// Walk to the next Street View photo along the road you're facing.
+const angleBetween = (a, b) => Math.abs(((a - b + 540) % 360) - 180);
+const MAX_WALK_ANGLE = 40; // the road must be on screen, roughly where you're looking
+let hintTimer = null;
+function flashHint(html) {
+  const hint = $("look-hint");
+  hint.innerHTML = html;
+  hint.classList.add("notice");
+  clearTimeout(hintTimer);
+  hintTimer = setTimeout(() => { hint.innerHTML = LOOK_HINT; hint.classList.remove("notice"); }, 2500);
+}
+/** The road link closest to where you're looking, and its signed angle from the view centre (+ = right). */
+function nearestLink() {
+  const links = (pano?.getLinks() || []).filter((l) => l?.pano);
+  if (!links.length) return null;
+  const best = links.reduce((a, b) => (angleBetween(b.heading, game.pov.heading) < angleBetween(a.heading, game.pov.heading) ? b : a));
+  const signed = ((best.heading - game.pov.heading + 540) % 360) - 180;
+  return { link: best, signed, walkable: Math.abs(signed) <= MAX_WALK_ANGLE };
+}
+function walkForward() {
+  if (!pano) return;
+  const near = nearestLink();
+  if (!near) return flashHint("No road to walk along here. Raise <b>twice</b> to guess 🗺️");
+  if (!near.walkable) return flashHint("Turn toward the road, then raise to walk 🚶");
+  pano.setPano(near.link.pano);
+}
+
+// Shows where a raise will walk to: a green arrow on the road ahead, or an edge hint
+// pointing to the nearest road when none is in front of you.
+function drawWalkMarker() {
+  const show = pano && game.mode === "look" && !cursor.paused;
+  $("aim").hidden = !show;
+  const near = show ? nearestLink() : null;
+  $("walk-marker").hidden = !near?.walkable;
+  $("road-edge").hidden = !near || near.walkable;
+  if (!near) return;
+  if (near.walkable) {
+    const w = $("look").clientWidth;
+    const fov = 180 / 2 ** (pano.getZoom() ?? 1); // Street View's horizontal field of view
+    const f = w / 2 / Math.tan((fov / 2) * Math.PI / 180);
+    const x = w / 2 + f * Math.tan(near.signed * Math.PI / 180);
+    $("walk-marker").style.left = `${Math.max(60, Math.min(w - 60, x))}px`;
+    $("walk-marker").style.rotate = `${near.signed * 0.5}deg`; // lean toward the road's direction
+  } else {
+    const right = near.signed > 0;
+    $("road-edge").className = `road-edge ${right ? "right" : "left"}`;
+    $("road-edge").textContent = right ? "road ➡" : "⬅ road";
+  }
 }
 
 $("look-again").onclick = () => show("look");
@@ -154,6 +208,7 @@ function steer(now) {
     game.pov.pitch = Math.max(-35, Math.min(35, game.pov.pitch - deadzone(y, settings.deadzone) * settings.lookSpeed * 0.5 * dt));
     pano.setPov(game.pov);
   }
+  drawWalkMarker();
   requestAnimationFrame(steer);
 }
 
@@ -168,12 +223,42 @@ async function loadGoogleMaps() {
     document.head.append(s);
   });
   svService = new google.maps.StreetViewService();
-  pano = new google.maps.StreetViewPanorama($("pano"), {
+  pano = makePano();
+  return true;
+}
+
+function makePano() {
+  panoSize = { w: $("pano").clientWidth, h: $("pano").clientHeight };
+  return new google.maps.StreetViewPanorama($("pano"), {
     disableDefaultUI: true, addressControl: false, showRoadLabels: false, linksControl: false,
     clickToGo: false, motionTracking: false, motionTrackingControl: false, scrollwheel: false,
   });
-  return true;
 }
+
+// Maximizing or resizing the window: Street View and Leaflet keep their old canvas size (the view
+// looks zoomed in) until they're told to re-measure.
+let resizeTimer = null;
+let panoSize = { w: 0, h: 0 };
+function refit() {
+  const { clientWidth: w, clientHeight: h } = $("pano");
+  if (pano && w && h && (w !== panoSize.w || h !== panoSize.h)) {
+    // The Maps "resize" event left Street View's canvas at its old size (zoomed-in look), so
+    // rebuild the panorama at the new size, on the same photo, facing the same way.
+    const id = pano.getPano();
+    $("pano").replaceChildren();
+    pano = makePano();
+    if (id) pano.setPano(id);
+    pano.setPov(game.pov);
+  }
+  map.invalidateSize();
+}
+const scheduleRefit = () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(refit, 300); };
+addEventListener("resize", scheduleRefit);
+new ResizeObserver(scheduleRefit).observe($("pano")); // also catches size changes with no window resize event
+setInterval(() => { // backstop: some window managers maximize without either notification
+  const { clientWidth: w, clientHeight: h } = $("pano");
+  if (pano && w && h && (w !== panoSize.w || h !== panoSize.h)) scheduleRefit();
+}, 1000);
 
 const hasMaps = await loadGoogleMaps().catch(() => false);
 $("pano-missing").hidden = hasMaps;

@@ -1,0 +1,73 @@
+{
+  "params": {
+    "k": 16.0,
+    "band_hz": [
+      25.0,
+      55.0
+    ],
+    "envelope_s": 0.03,
+    "release": 0.6,
+    "release_of_peak": 0.2,
+    "min_s": 0.16,
+    "max_s": 2.0,
+    "double_window_s": 1.0,
+    "debounce_s": 0.05
+  },
+  "trained_on": [
+    "20261107-195305-jonathan",
+    "20261107-195701-jonathan",
+    "20261107-200037-jonathan",
+    "20261107-200553-jonathan"
+  ],
+  "held_out": [
+    {
+      "session": "20261107-195305-jonathan",
+      "single_hit": "17/20",
+      "double_hit": "8/10",
+      "single_read_as_double": 0,
+      "fp_per_min": 0.94,
+      "fp_swallow": 0,
+      "fp_blink": 2,
+      "fp_head_move": 0,
+      "fp_talk": 0,
+      "objective": 1.015
+    },
+    {
+      "session": "20261107-195701-jonathan",
+      "single_hit": "17/20",
+      "double_hit": "9/10",
+      "single_read_as_double": 0,
+      "fp_per_min": 1.89,
+      "fp_head_move": 1,
+      "fp_swallow": 1,
+      "fp_blink": 2,
+      "fp_talk": 0,
+      "objective": 0.828
+    },
+    {
+      "session": "20261107-200037-jonathan",
+      "single_hit": "17/20",
+      "double_hit": "7/10",
+      "single_read_as_double": 1,
+      "fp_per_min": 1.92,
+      "fp_talk": 4,
+      "fp_head_move": 0,
+      "fp_swallow": 0,
+      "fp_blink": 0,
+      "objective": 0.695
+    },
+    {
+      "session": "20261107-200553-jonathan",
+      "single_hit": "17/20",
+      "double_hit": "6/10",
+      "single_read_as_double": 1,
+      "fp_per_min": 1.42,
+      "fp_blink": 0,
+      "fp_talk": 0,
+      "fp_head_move": 0,
+      "fp_swallow": 0,
+      "objective": 0.77
+    }
+  ],
+  "note": "written by server.train; the server loads this at start-up"
+}

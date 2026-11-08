@@ -5,8 +5,8 @@ A GeoGuessr-style game for kids who can't use a mouse. **Head tilt** steers Stre
 | Gesture | Effect |
 |---|---|
 | Tilt head | Look around in Street View. On the map, move the cursor. |
-| Raise eyebrows once | Click: go to the map, drop a pin, or press a button |
-| Raise eyebrows twice quickly | Grab the map and move it. Raise once to let go. |
+| Raise eyebrows once | In Street View: walk forward along the road you're facing. On the map: drop a pin or press a button. |
+| Raise eyebrows twice quickly | In Street View: go to the guess map. On the map: grab the map and move it; raise once to let go. |
 | Look at the top-right corner for 2 s | Pause |
 | Helper presses Space or Esc | Pause or resume |
 | Any raise while paused | Resume. The head's neutral position is reset at the same time. |
@@ -30,7 +30,7 @@ You can work without the headset:
 
 - **Electrodes:** one forehead electrode on **channel 2** (gain 12), with the reference on the ear clip.
 - **Sample-rate check:** `uv run python -m server.board --seconds 30`. The rate should come out close to 125 Hz. The last hackathon only got 72–79 Hz. The report goes to `data/ratecheck/`.
-- **Setup page:** follow it in order. Zero the head, check the axes, calibrate the eyebrows (stay relaxed for 8 s), then test some raises.
+- **Setup page:** follow it in order. Click **Learn my head movements** (nod, shake, look up, look right; ~25 s) so nods move only up/down and turns only left/right however the sensor is mounted. Then zero the head, calibrate the eyebrows (stay relaxed for 8 s), then test some raises.
 
 ## Collect data, then hand it to Claude
 
@@ -44,6 +44,22 @@ uv run python -m server.evaluate data/sessions/* --k 4 5 6 8
 ```
 
 The output shows, per session: how many single and double raises were caught, false raises per minute, and which hard negatives caused false clicks.
+
+## Train the detector on your sessions
+
+```bash
+uv run python -m server.train data/sessions/*
+```
+
+This tries 500 detector settings: sensitivity `k`, EMG band, envelope speed, burst length limits, the double-raise window, and debounce. Each setting is replayed through the real detector on every session. The script prints three tables:
+
+- **Current defaults:** how the untuned detector does.
+- **Tuned:** the best settings, scored on the sessions they were tuned on. This is optimistic.
+- **Held-out check:** each session scored by settings tuned *without* it. **Trust this one.** It needs at least 2 sessions.
+
+The best settings are saved to `data/detector_params.json`, and the server loads them at start-up, so restart it afterwards. The `k` in `data/profile.json` is updated to match. Moving the setup-page slider still overrides `k` afterwards. Calibrate again ("relax 8 s") after training, since the threshold is set from your neutral baseline.
+
+The scoring rewards caught single raises the most. Then it rewards caught double raises (×0.5), and penalises false raises per minute (×0.25) and singles read as doubles (×0.5). Change the `W_*` weights in `server/train.py` to shift the balance. Use `--dry-run` to see results without saving.
 
 ## Google Street View key (free tier, capped at $0)
 

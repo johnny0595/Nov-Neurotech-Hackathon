@@ -3,8 +3,15 @@ import { beep, connect, headXY, mock, saveSettings, settings } from "./input.js"
 const $ = (id) => document.getElementById(id);
 let maxEnvSeen = 1;
 
+let axesLearned = null;
 const api = connect({
   onState(s) {
+    if (s.axes_learned !== undefined && s.axes_learned !== axesLearned) {
+      axesLearned = s.axes_learned;
+      $("manualAxes").hidden = axesLearned;
+      $("clearAxes").hidden = !axesLearned;
+      if (!$("axesStatus").dataset.sticky) $("axesStatus").textContent = axesLearned ? "Head calibrated ✓ (saved). Recalibrate if the headset moved." : "Not calibrated yet: press Calibrate head.";
+    }
     const live = s.status === "live" || mock;
     $("conn").textContent = s.status ?? "";
     $("conn").className = `pill ${live ? "good" : "bad"}`;
@@ -34,6 +41,12 @@ const api = connect({
     $("log").prepend(li);
   },
   onMessage(m) {
+    if (m.t === "axes") {
+      $("axesStatus").dataset.sticky = "1";
+      $("axesStatus").innerHTML = m.ok
+        ? `Calibrated ✓ at ${new Date().toLocaleTimeString()}. Nod and turn: the dot should follow cleanly. If it ever creeps, press Re-center.`
+        : `Didn't work: ${(m.problems || []).join("; ")}. Try again.`;
+    }
     if (m.t === "saved") $("saved").innerHTML = m.path ? `Saved <code>${m.path}</code>. Tell Claude: “analyze ${m.path}”.` : "Nothing was saved.";
   },
 });
@@ -65,6 +78,57 @@ $("calibrate").onclick = async () => {
 
 // ---------- guided recording ----------
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// ---------- head calibration (server/head_axes.py + gyro bias tracking in orientation.py) ----------
+$("learnAxes").onclick = async () => {
+  const phase = (p) => api.send({ cmd: "axes_phase", phase: p });
+  const zero = () => api.send({ cmd: "zero" });
+  const steps = 6;
+  const count = (n) => { $("prompt-count").textContent = `Head calibration · step ${n} of ${steps}`; };
+  $("learnAxes").disabled = true;
+  $("abort").hidden = true;
+  $("prompt").hidden = false;
+  delete $("axesStatus").dataset.sticky;
+  $("axesStatus").textContent = "Calibrating…";
+  phase("begin");
+  count(1);
+  await step("Sit comfortably, look at the screen<br>and hold <b>completely still</b> 🧘", 6);
+  zero();
+  count(2);
+  phase("nod");
+  await step("Nod YES, slowly ↕<br><small>up and down, keep going</small>", 5, "action");
+  phase("none");
+  await step("Look straight at the screen", 2);
+  count(3);
+  phase("turn");
+  await step("Shake NO, slowly ↔<br><small>left and right, keep going</small>", 5, "action");
+  phase("none");
+  await step("Look straight at the screen", 2);
+  zero();
+  count(4);
+  await step("Look UP ⬆", 1, "action");
+  phase("up");
+  await step("Look UP ⬆ and hold", 1.5, "action");
+  phase("none");
+  await step("Look straight at the screen", 2);
+  zero();
+  count(5);
+  await step("Turn to look RIGHT ➡", 1, "action");
+  phase("right");
+  await step("Turn to look RIGHT ➡ and hold", 1.5, "action");
+  phase("none");
+  count(6);
+  await step("Look straight at the screen<br>and hold still", 3);
+  zero();
+  api.send({ cmd: "axes_finish" });
+  $("prompt").hidden = true;
+  $("abort").hidden = false;
+  $("learnAxes").disabled = false;
+};
+$("clearAxes").onclick = () => {
+  api.send({ cmd: "axes_clear" });
+  delete $("axesStatus").dataset.sticky;
+};
 const TRIALS = [
   ...Array(20).fill(["eyebrow_raise", "Raise your eyebrows ONCE", 1.5, "action"]),
   ...Array(10).fill(["double_raise", "Raise TWICE, quickly", 2.0, "action"]),
