@@ -4,6 +4,7 @@ import { OneEuro, gainsFromRange, lockLookbackMs, magnetize, pointTarget, positi
 // Live: head angles and eyebrow events stream from the Python server over /ws.
 // Mock (?mock=1): mouse position stands in for head tilt, C = eyebrow click (a 0.3 s raise), D = double raise.
 // Like the server (without --double), mock is single-raise-only; add &double=1 to make D drag the map.
+// G = a raise the server ignored because the head was moving (gated_raise).
 
 const DEFAULTS = {
   xAxis: "roll", yAxis: "pitch", invertX: false, invertY: false, deadzone: 3, speed: 60, maxSpeed: 1100, lookSpeed: 7,
@@ -59,6 +60,7 @@ export function connect({ onState = () => {}, onEvent = () => {}, onMessage = ()
     addEventListener("keydown", (e) => {
       if (e.target.closest?.("input, select, textarea")) return;
       if (e.key === "c") { fake.envelope = 24; onEvent({ type: "raise", duration_s: 0.3 }); onEvent({ type: "click", duration_s: 0.3, delay_s: 0 }); }
+      if (e.key === "g") { fake.envelope = 24; onEvent({ type: "gated_raise", duration_s: 0.3 }); }
       if (e.key === "d" && double_enabled) { fake.envelope = 24; onEvent({ type: "raise" }); onEvent({ type: "raise" }); onEvent({ type: "drag_toggle" }); }
     });
     setInterval(() => {
@@ -93,12 +95,12 @@ export function connect({ onState = () => {}, onEvent = () => {}, onMessage = ()
 let audio;
 addEventListener("keydown", () => { audio ??= new AudioContext(); audio.resume(); });
 addEventListener("pointerdown", () => { audio ??= new AudioContext(); audio.resume(); });
-export function beep(freq = 660, ms = 90) {
+export function beep(freq = 660, ms = 90, volume = 0.15) {
   if (!audio || audio.state !== "running") return;
   const osc = audio.createOscillator();
   const gain = audio.createGain();
   osc.frequency.value = freq;
-  gain.gain.setValueAtTime(0.15, audio.currentTime);
+  gain.gain.setValueAtTime(volume, audio.currentTime);
   gain.gain.exponentialRampToValueAtTime(0.001, audio.currentTime + ms / 1000);
   osc.connect(gain).connect(audio.destination);
   osc.start();
@@ -126,7 +128,12 @@ export function createCursor({ api, onClick = () => {}, onDrag = () => {}, onPau
   // "What will a raise do here?" pill under the cursor: data-raise-label on buttons, or labelAt() from the page
   const label = document.createElement("div");
   label.className = "raise-label hidden";
-  document.body.append(corner, overlay, el, label);
+  // Feedback for every raise: "Raise seen ✓" (accepted) or "Hold still, then raise" (head was moving)
+  const badge = document.createElement("div");
+  badge.className = "raise-badge hidden";
+  badge.setAttribute("role", "status");
+  document.body.append(corner, overlay, el, label, badge);
+  let badgeTimer = null;
   overlay.addEventListener("click", () => setPaused(false)); // mouse fallback: click to resume
 
   // x/y: where the head points; sx/sy: shown position after the magnet (used for hit-testing and click lock)
@@ -168,10 +175,25 @@ export function createCursor({ api, onClick = () => {}, onDrag = () => {}, onPau
     el.classList.add(kind === "drag_toggle" ? "flash-drag" : "flash");
   }
 
+  function feedback(kind) {
+    const seen = kind === "seen";
+    if (seen) beep(660, 90);
+    else beep(330, 160, 0.05); // softer, lower: not an error, just "try again"
+    badge.textContent = seen ? "Raise seen ✓" : "Hold still, then raise";
+    badge.className = `raise-badge ${seen ? "seen" : "hold"}`;
+    badge.classList.toggle("at-cursor", !c.paused && c.visible);
+    // position with `translate` (not `transform`): the pop animation's `scale` would scale a transform offset too
+    badge.style.translate = !c.paused && c.visible ? `calc(${c.sx}px - 50%) calc(${c.sy - 64}px - 100%)` : "";
+    clearTimeout(badgeTimer);
+    badgeTimer = setTimeout(() => badge.classList.add("hidden"), seen ? 600 : 1500);
+  }
+
   function handleEvent(e) {
+    if (e.type === "raise") return feedback("seen");
+    if (e.type === "gated_raise") return feedback("gated");
     if (e.type !== "click" && e.type !== "drag_toggle") return;
     if (e.type === "drag_toggle" && !dragEnabled) return;
-    beep(e.type === "click" ? 660 : 880);
+    if (e.type === "drag_toggle") beep(880); // the raise itself already beeped
     if (c.paused) return setPaused(false);
     flash(e.type);
     if (e.type === "drag_toggle") { c.dragging = !c.dragging; return; }
@@ -237,7 +259,7 @@ export function createCursor({ api, onClick = () => {}, onDrag = () => {}, onPau
       if (progress >= 1) setPaused(true);
     } else if (hovered) { hovered.classList.remove("head-hover"); hovered = null; }
     if (!active) label.classList.add("hidden");
-    el.style.transform = `translate(${c.sx}px, ${c.sy}px)`;
+    el.style.translate = `${c.sx}px ${c.sy}px`; // not transform: the click "pop" animates scale, which would scale the offset
     el.classList.toggle("hidden", !active);
     el.classList.toggle("dragging", c.dragging);
     corner.classList.toggle("hidden", !active);

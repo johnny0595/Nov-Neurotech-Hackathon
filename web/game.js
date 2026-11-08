@@ -19,7 +19,7 @@ const game = {
 };
 // Helper summary counters (front-end only). shownAt: when the current screen appeared, cleared by the
 // first click on it, so "time to click" is measured once per screen.
-const stats = { raises: 0, clicks: 0, clickTimes: [], rounds: 0, shownAt: null };
+const stats = { raises: 0, gated: 0, clicks: 0, clickTimes: [], rounds: 0, shownAt: null };
 let pano = null;
 let svService = null;
 let guessMarker = null;
@@ -40,9 +40,12 @@ const api = connect({
     for (const m of meters) m.update(state);
   },
   onEvent(e) {
-    if (e.type === "raise") {
-      stats.raises += 1;
-      for (const m of meters) m.flash();
+    if (e.type === "raise" || e.type === "gated_raise") {
+      if (e.type === "raise") {
+        stats.raises += 1;
+        for (const m of meters) m.flash();
+      } else stats.gated += 1;
+      cursor.handleEvent(e); // beep + "Raise seen ✓" / "Hold still, then raise"
       return;
     }
     if (e.type === "click") {
@@ -194,7 +197,7 @@ async function startGame() {
   if (cursor.paused) cursor.resume(); // re-zeroes the head's neutral pose
   game.round = 0;
   game.total = 0;
-  Object.assign(stats, { raises: 0, clicks: 0, clickTimes: [], rounds: 0, shownAt: null });
+  Object.assign(stats, { raises: 0, gated: 0, clicks: 0, clickTimes: [], rounds: 0, shownAt: null });
   $("score").textContent = "0 points";
   $("helper-panel").hidden = true;
   await newRound();
