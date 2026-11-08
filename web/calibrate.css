@@ -33,3 +33,7 @@ body.setup { overflow: auto; font-size: 18px; }
 .progress { width: min(800px, 90vw); height: 18px; margin: 0 auto; border-radius: 9px; background: rgba(127,127,127,.25); overflow: hidden; }
 #prompt-bar { height: 100%; width: 0; background: var(--ink); }
 #abort { justify-self: center; }
+
+/* head section: manual settings tucked away (calibrate.html) */
+.advanced { margin-top: 12px; }
+.advanced summary { cursor: pointer; font-weight: 700; }

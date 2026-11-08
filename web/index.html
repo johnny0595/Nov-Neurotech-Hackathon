@@ -23,7 +23,10 @@
       <h2>Street View needs a Google Maps key</h2>
       <p>Put <code>GOOGLE_MAPS_API_KEY=…</code> in <code>.env</code> and restart the server.<br>The rest of the game still works.</p>
     </div>
-    <div class="hint">Turn your head to look around · <b>Raise eyebrows</b> to guess on the map 🗺️</div>
+    <div id="aim" class="aim" hidden></div>
+    <div id="walk-marker" class="walk-marker" hidden><span>⬆</span><small>raise to walk</small></div>
+    <div id="road-edge" class="road-edge" hidden></div>
+    <div id="look-hint" class="hint">Turn your head to look around · <b>Raise once</b> to walk 🚶 · <b>Raise twice</b> to guess 🗺️</div>
   </section>
 
   <section id="guess" class="screen" hidden>

@@ -18,17 +18,15 @@ from .rows import NUM_ROWS, PACKAGE_ROW, TIMESTAMP_ROW, validate_batch
 
 GAIN = 12
 SETTLE_SECONDS = 2.0
-COMMAND_DELAY_SECONDS = 0.5  # the board silently drops commands sent faster than this
+# Tested 2026-11-07: every channel is off after power-up. A second command sent 0.5 s
+# after the first was dropped, and some commands in a fast burst switched on the wrong
+# channel. So send only what's needed, one at a time, and check the channel is live.
+COMMAND_GAP_SECONDS = 1.5
+ENABLE_ATTEMPTS = 4
 
 
-def channel_commands(active_channel: int) -> list[str]:
-    commands: list[str] = []
-    for ch in range(1, 9):
-        if ch == active_channel:
-            commands += [f"chon_{ch}_{GAIN}", f"rldadd_{ch}"]
-        else:
-            commands += [f"rldremove_{ch}", f"choff_{ch}"]
-    return commands
+def channel_is_live(data: np.ndarray, channel: int) -> bool:
+    return data.shape[1] > 0 and float(np.std(data[channel])) > 0.0
 
 
 class Board:
@@ -56,9 +54,7 @@ class Board:
             self.board.prepare_session()
             self.board.start_stream(450000)
             time.sleep(SETTLE_SECONDS)
-            for command in channel_commands(self.channel):
-                self.board.config_board(command)
-                time.sleep(COMMAND_DELAY_SECONDS)
+            self._enable_channel()
         except Exception:
             self.close()
             raise
@@ -70,6 +66,27 @@ class Board:
             "gain": GAIN,
         }
         self.log(f"Streaming on {port.port}, channel {self.channel} at gain {GAIN}")
+
+    def _send_and_check(self, command: str) -> bool:
+        self.board.config_board(command)
+        time.sleep(COMMAND_GAP_SECONDS)
+        return channel_is_live(self.board.get_board_data(), self.channel)
+
+    def _enable_channel(self) -> None:
+        on = f"chon_{self.channel}_{GAIN}"
+        for attempt in range(1, ENABLE_ATTEMPTS + 1):
+            if self._send_and_check(on):
+                self.log(f"channel {self.channel} live after {attempt} attempt(s)")
+                break
+            self.log(f"channel {self.channel} still flat after '{on}', retrying")
+        else:
+            raise RuntimeError(f"channel {self.channel} stayed flat after {ENABLE_ATTEMPTS} tries; unplug the board for 5 s and restart")
+        # Route the channel into the bias drive (less mains noise). If that knocks the channel
+        # out, switch it back on; the bias is a nice-to-have, the channel is not.
+        if not self._send_and_check(f"rldadd_{self.channel}"):
+            self.log("channel went flat after rldadd; switching it back on without bias routing")
+            if not self._send_and_check(on):
+                raise RuntimeError(f"channel {self.channel} went flat after rldadd and didn't come back")
 
     def read(self) -> np.ndarray:
         """Drain everything new since the last read, shape (22, n)."""
