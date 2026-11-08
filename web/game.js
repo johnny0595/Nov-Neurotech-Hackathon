@@ -21,7 +21,7 @@ const $ = (id) => document.getElementById(id);
 const region = currentRegion();
 const params = new URLSearchParams(location.search);
 // Look-screen pill: what a raise does in Street View (walking needs double raises, the default)
-const lookHintHtml = () => t(game.doubleEnabled ? "look.pill.double" : "look.pill.single");
+const lookHintHtml = () => t(singleInput() ? "look.pill.single" : "look.pill.double");
 
 const game = {
   mode: "start", round: 0, total: 0, answer: null, guess: null, pov: { heading: 0, pitch: 0 },
@@ -52,6 +52,7 @@ const api = connect({
     $("status").textContent = state.status === "live" ? "" : state.status ?? "";
     for (const m of meters) m.update(state);
   },
+  switchKeys: true, // keyboard-switch input: Space / Enter = click
   onEvent(e) {
     if (e.type === "raise" || e.type === "gated_raise") {
       if (e.type === "raise") {
@@ -195,9 +196,9 @@ function setDoubleEnabled(enabled) {
   applyLookLayout();
 }
 
-/** One reliable click and nothing else: no double raise, so Street View uses the tile band. */
+/** One reliable click and nothing else (no double raise, or a keyboard switch): Street View uses the tile band. */
 function singleInput() {
-  return !game.doubleEnabled;
+  return !game.doubleEnabled || settings.input === "keyboard-switch";
 }
 
 // Street View layout: double raises use the walk/map gestures; single input uses the bottom tile band,
@@ -219,10 +220,11 @@ function updateSingleInstruction() {
   if (text !== lastInstruction) { lastInstruction = text; $("single-instruction").textContent = text; }
 }
 
-// All dynamic text, re-rendered when the tone (or later, the input) changes.
+// All dynamic text, re-rendered when the tone or the input changes.
 function refreshText() {
   applyStrings();
-  $("guess-hint").innerHTML = t(game.doubleEnabled ? "guess.hint.double" : "guess.hint.single");
+  $("start-meter").hidden = settings.input === "keyboard-switch";
+  $("guess-hint").innerHTML = t(singleInput() ? "guess.hint.single" : "guess.hint.double");
   if (!$("look-hint").classList.contains("notice")) $("look-hint").innerHTML = lookHintHtml();
   if (!armed) resetSubmitButton();
   $("round").textContent = t("top.round", { n: Math.max(1, game.round), total: ROUNDS });
@@ -230,7 +232,7 @@ function refreshText() {
   $("speech").setAttribute("aria-pressed", String(Boolean(settings.speechOn)));
   $("score").textContent = t("top.points", { points: game.total.toLocaleString() });
 }
-addEventListener("settings-changed", refreshText);
+addEventListener("settings-changed", () => { refreshText(); applyLookLayout(); });
 
 function show(mode) {
   if (mode !== "guess") disarm();
@@ -247,7 +249,7 @@ function show(mode) {
   $("final").hidden = mode !== "final";
   document.querySelectorAll("#guess .action-row, #guess .hint, #guess .top-band").forEach((el) => (el.hidden = mode !== "guess"));
   document.body.classList.toggle("at-start", mode === "start");
-  $("corner-meter").hidden = mode === "start";
+  $("corner-meter").hidden = mode === "start" || settings.input === "keyboard-switch"; // no EMG to show
   applyLookLayout();
   if (onMap) map.invalidateSize();
 }

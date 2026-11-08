@@ -20,7 +20,8 @@ body.setup { overflow: auto; font-size: 18px; }
 .pad { position: relative; height: 180px; border-radius: 16px; background: var(--cream); border: 3px dashed var(--muted); overflow: hidden; }
 #dot { position: absolute; left: 50%; top: 50%; width: 28px; height: 28px; margin: -14px; border-radius: 50%; background: var(--coral); }
 .meter { position: relative; height: 44px; border-radius: 12px; background: var(--cream); border: 3px solid var(--ink); overflow: hidden; }
-#env { height: 100%; width: 0; background: var(--teal); transition: width 50ms linear; }
+#env, #env-jaw { height: 100%; width: 0; background: var(--teal); transition: width 50ms linear; }
+#thr-jaw { position: absolute; top: 0; bottom: 0; width: 4px; background: var(--coral); left: 50%; }
 #thr { position: absolute; top: 0; bottom: 0; width: 4px; background: var(--coral); left: 50%; }
 .log { max-height: 180px; overflow: auto; margin: 8px 0 0; padding-left: 24px; font-weight: 700; }
 .log li.click { color: var(--teal); }

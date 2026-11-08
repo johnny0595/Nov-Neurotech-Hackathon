@@ -10,7 +10,10 @@ export { saveSettings, settings };
 // Mock (?mock=1): mouse position stands in for head tilt, C = eyebrow click (a 0.3 s raise), D = double raise.
 // Like the server, mock has double raises on (D = walk-mode "open the map" / grab the map); add &single=1 to turn
 // them off, like the server's --single.
-// G = a raise the server ignored because the head was moving (gated_raise).
+// G = a raise the server ignored because the head was moving (gated_raise). J = a jaw clench (a click from
+// the "jaw" channel), so the input setting (brow / jaw / either) can be tried without a headset.
+// Keyboard switch (settings.input = "keyboard-switch"): Space or Enter is a click, for players using a
+// physical switch that types a key; the helper then pauses with Esc.
 
 const MAGNET_RADIUS = 80;
 const MOCK_RANGE = { left: 20, right: 20, down: 20, up: 20 }; // mock maps the window edges to ±20°
@@ -37,11 +40,35 @@ export function deadzone(value, dz) {
   return m <= 0 ? 0 : Math.sign(value) * m;
 }
 
-export function connect({ onState = () => {}, onEvent = () => {}, onMessage = () => {} } = {}) {
+/** Does an event from this source count with the player's input setting? */
+export function sourceAllowed(source, input = settings.input) {
+  if (input === "keyboard-switch") return source === "switch";
+  if (!source || input === "either") return source !== "switch";
+  return source === input;
+}
+
+export function connect({ onState: onStateRaw = () => {}, onEvent: onEventRaw = () => {}, onMessage = () => {}, switchKeys = false } = {}) {
   const api = { connected: false, send() {} };
+  // only the player's chosen input makes clicks (the server filters too; this covers mock mode)
+  const onEvent = (e) => { if (sourceAllowed(e.source)) onEventRaw(e); };
+  const onState = onStateRaw;
+  const sendInput = () => api.send({ cmd: "set_input", input: settings.input });
+  addEventListener("settings-changed", sendInput);
+  if (switchKeys) {
+    // a physical switch (or a keyboard) as the only input: Space / Enter = one click
+    addEventListener("keydown", (e) => {
+      if (settings.input !== "keyboard-switch" || e.repeat) return;
+      if (e.target.closest?.("input, select, textarea")) return;
+      if (e.code !== "Space" && e.code !== "Enter" && e.code !== "NumpadEnter") return;
+      e.preventDefault(); // don't also press whichever button has keyboard focus
+      onEvent({ type: "raise", duration_s: 0.1, source: "switch" });
+      onEvent({ type: "click", duration_s: 0.1, delay_s: 0, source: "switch" });
+    });
+  }
   if (mock) {
     const double_enabled = !new URLSearchParams(location.search).has("single");
-    const fake = { roll: 0, pitch: 0, yaw: 0, status: `mock (mouse + C${double_enabled ? "/D" : ""} keys)`, envelope: 3, threshold: 10, rate_hz: 0, double_enabled, gyro_dps: 0 };
+    const fake = { roll: 0, pitch: 0, yaw: 0, status: `mock (mouse + C${double_enabled ? "/D" : ""}/J keys)`, envelope: 3, threshold: 10, rate_hz: 0, double_enabled, gyro_dps: 0 };
+    let jawEnvelope = 3;
     let prevTilt = [0, 0];
     addEventListener("mousemove", (e) => {
       fake.roll = ((e.clientX - innerWidth / 2) / (innerWidth / 2)) * 20;
@@ -50,16 +77,21 @@ export function connect({ onState = () => {}, onEvent = () => {}, onMessage = ()
     });
     addEventListener("keydown", (e) => {
       if (e.target.closest?.("input, select, textarea")) return;
-      if (e.key === "c") { fake.envelope = 24; onEvent({ type: "raise", duration_s: 0.3 }); onEvent({ type: "click", duration_s: 0.3, delay_s: 0 }); }
-      if (e.key === "g") { fake.envelope = 24; onEvent({ type: "gated_raise", duration_s: 0.3 }); }
-      if (e.key === "d" && double_enabled) { fake.envelope = 24; onEvent({ type: "raise" }); onEvent({ type: "raise" }); onEvent({ type: "drag_toggle" }); }
+      if (e.key === "c") { fake.envelope = 24; onEvent({ type: "raise", duration_s: 0.3, source: "brow" }); onEvent({ type: "click", duration_s: 0.3, delay_s: 0, source: "brow" }); }
+      if (e.key === "j") { jawEnvelope = 24; onEvent({ type: "raise", duration_s: 0.3, source: "jaw" }); onEvent({ type: "click", duration_s: 0.3, delay_s: 0, source: "jaw" }); }
+      if (e.key === "g") { fake.envelope = 24; onEvent({ type: "gated_raise", duration_s: 0.3, source: "brow" }); }
+      if (e.key === "d" && double_enabled) { fake.envelope = 24; onEvent({ type: "raise", source: "brow" }); onEvent({ type: "raise", source: "brow" }); onEvent({ type: "drag_toggle", source: "brow" }); }
     });
     setInterval(() => {
       fake.envelope = 3 + (fake.envelope - 3) * 0.9 + Math.random() * 0.6; // fake EMG: decays back to rest
       // fake gyro: how fast the mouse "head" is turning, in deg/s (mouse still = head still)
       fake.gyro_dps = Math.round(Math.hypot(fake.roll - prevTilt[0], fake.pitch - prevTilt[1]) * 60 * 10) / 10;
       prevTilt = [fake.roll, fake.pitch];
-      onState({ ...fake, envelope: Math.round(fake.envelope * 100) / 100 });
+      jawEnvelope = 3 + (jawEnvelope - 3) * 0.9 + Math.random() * 0.6;
+      const round = (v) => Math.round(v * 100) / 100;
+      const detectors = { brow: { channel: 2, envelope: round(fake.envelope), threshold: 10, k: 6 }, jaw: { channel: 3, envelope: round(jawEnvelope), threshold: 10, k: 6 } };
+      const primary = settings.input === "jaw" ? detectors.jaw : detectors.brow; // the meters show the active input
+      onState({ ...fake, envelope: primary.envelope, input: settings.input, detectors });
     }, 1000 / 60);
     api.connected = true;
     api.send = (msg) => console.debug(`[mock] send ${JSON.stringify(msg)}`); // e.g. { cmd: "zero" } from auto re-zero
@@ -69,7 +101,7 @@ export function connect({ onState = () => {}, onEvent = () => {}, onMessage = ()
   api.send = (msg) => { if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify(msg)); };
   const open = () => {
     ws = new WebSocket(`${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws`);
-    ws.onopen = () => { api.connected = true; };
+    ws.onopen = () => { api.connected = true; sendInput(); };
     ws.onmessage = (m) => {
       const msg = JSON.parse(m.data);
       if (msg.t === "state") {
@@ -124,7 +156,8 @@ export function createCursor({ api, onClick = () => {}, onDrag = () => {}, onPau
     const dwell = timing().pauseDwellS > 0;
     corner.innerHTML = `<span>⏸</span><b>${t("pauseTile.title")}</b>${dwell ? `<small>${t("pauseTile.hold")}</small>` : ""}`;
     corner.dataset.raiseLabel = t("pauseTile.title");
-    overlay.innerHTML = `<div><h1>${t("pause.title")}</h1><p>${t("pause.body")}</p><small>${t("pause.helper")}</small></div>`;
+    const helper = t(settings.input === "keyboard-switch" ? "pause.helper.switch" : "pause.helper");
+    overlay.innerHTML = `<div><h1>${t("pause.title")}</h1><p>${t("pause.body")}</p><small>${helper}</small></div>`;
   }
   renderText();
   addEventListener("settings-changed", renderText); // tone or input changed
@@ -282,7 +315,9 @@ export function createCursor({ api, onClick = () => {}, onDrag = () => {}, onPau
 
   addEventListener("keydown", (e) => {
     if (e.target.closest?.("input, select, textarea")) return;
-    if (e.code === "Space" || e.code === "Escape") { e.preventDefault(); setPaused(!c.paused); }
+    // with a keyboard switch, Space is the player's click, so the helper pauses with Esc only
+    const pauseKey = e.code === "Escape" || (e.code === "Space" && settings.input !== "keyboard-switch");
+    if (pauseKey) { e.preventDefault(); setPaused(!c.paused); }
   });
 
   return {

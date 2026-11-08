@@ -4,6 +4,7 @@ uv run python -m server.app                        # live board
 uv run python -m server.app --replay data/sessions/<dir>   # replay a recording
 uv run python -m server.app --single               # single raises only: clicks fire at once, no walking
 uv run python -m server.app --gyro-gate 80         # head-motion gate threshold in deg/s (0 = off)
+uv run python -m server.app --channels 2,3         # brow EMG on channel 2, jaw EMG on channel 3
 Without the board, open http://localhost:8000/?mock=1 (mouse + keys stand in).
 """
 
@@ -26,6 +27,7 @@ from .board import Board
 from .eyebrow import PARAMS_PATH, DetectorParams, EyebrowDetector
 from .gyrogate import DEFAULT_GATE_DPS, GyroGate
 from .head_axes import AXES_PATH, HeadAxes, HeadTracker
+from .merge import INPUT_MODES, EventMerger, sources_for
 from .orientation import ImuConfig, OrientationEstimator
 from .recording import Recorder
 from .rows import EXG_ROWS, GYRO_ROWS, SAMPLING_RATE_HZ
@@ -63,12 +65,21 @@ class ReplaySource:
 
 class Hub:
     def __init__(self, source, channel: int, double_enabled: bool = True,
-                 gyro_gate: float | None = DEFAULT_GATE_DPS, gyro_units: str = "auto") -> None:
+                 gyro_gate: float | None = DEFAULT_GATE_DPS, gyro_units: str = "auto",
+                 channels: dict[str, int] | None = None) -> None:
         self.source = source
-        self.channel = channel
+        # EMG channels by role: {"brow": 2} by default, {"brow": 2, "jaw": 3} with --channels 2,3
+        self.channels = dict(channels or {"brow": channel})
+        self.channel = self.channels.get("brow", next(iter(self.channels.values())))
         self.orientation = OrientationEstimator(ImuConfig(gyro_units=gyro_units))
-        # tuned settings from server.train (data/detector_params.json) if present, plus single/double mode
-        self.detector = EyebrowDetector(DetectorParams.load(fs=SAMPLING_RATE_HZ, double_enabled=double_enabled))
+        # one detector per EMG channel, each calibrated separately; tuned settings from server.train
+        # (data/detector_params.json) if present, plus single/double mode
+        self.detectors = {
+            name: EyebrowDetector(DetectorParams.load(fs=SAMPLING_RATE_HZ, double_enabled=double_enabled))
+            for name in self.channels
+        }
+        self.input_mode = "brow" if "brow" in self.detectors else next(iter(self.detectors))
+        self.merger = EventMerger(SAMPLING_RATE_HZ)
         if PARAMS_PATH.exists():
             print(f"eyebrow detector: using tuned settings from {PARAMS_PATH.name}")
         self.gate = GyroGate(gyro_gate, fs=SAMPLING_RATE_HZ, units=gyro_units)
@@ -88,18 +99,44 @@ class Hub:
         self._axes_data: dict[str, list] = {}
         self._load_profile()
 
+    @property
+    def detector(self) -> EyebrowDetector:
+        """The detector the meters show: the jaw one in jaw mode, otherwise the brow one."""
+        if self.input_mode == "jaw" and "jaw" in self.detectors:
+            return self.detectors["jaw"]
+        return self.detectors.get("brow", next(iter(self.detectors.values())))
+
+    def _profile_data(self) -> dict:
+        # top-level baseline/k stay the brow detector's, so older files keep working
+        brow = self.detectors.get("brow")
+        return {
+            "baseline": brow.baseline if brow else None,
+            "k": brow.p.k if brow else None,
+            "detectors": {name: {"baseline": d.baseline, "k": d.p.k} for name, d in self.detectors.items()},
+            "input": self.input_mode,
+        }
+
+    def _apply_profile(self, profile: dict, saved_mtime: float | None = None) -> None:
+        # A newer training run wins over an older slider setting.
+        trained_is_newer = saved_mtime is not None and PARAMS_PATH.exists() and PARAMS_PATH.stat().st_mtime >= saved_mtime
+        per = dict(profile.get("detectors") or {})
+        if "brow" not in per and profile.get("baseline") is not None:
+            per["brow"] = {"baseline": profile.get("baseline"), "k": profile.get("k")}
+        for name, det in self.detectors.items():
+            saved = per.get(name) or {}
+            det.baseline = tuple(saved["baseline"]) if saved.get("baseline") else None
+            if saved.get("k") is not None and not trained_is_newer:
+                det.p.k = float(saved["k"])
+        if profile.get("input") in INPUT_MODES:
+            self.input_mode = profile["input"]
+
     def _load_profile(self) -> None:
         if PROFILE_PATH.exists():
-            profile = json.loads(PROFILE_PATH.read_text())
-            self.detector.baseline = tuple(profile["baseline"]) if profile.get("baseline") else None
-            # A newer training run wins over an older slider setting.
-            trained_is_newer = PARAMS_PATH.exists() and PARAMS_PATH.stat().st_mtime >= PROFILE_PATH.stat().st_mtime
-            if not trained_is_newer:
-                self.detector.p.k = float(profile.get("k", self.detector.p.k))
+            self._apply_profile(json.loads(PROFILE_PATH.read_text()), PROFILE_PATH.stat().st_mtime)
 
     def _save_profile(self) -> None:
         PROFILE_PATH.parent.mkdir(parents=True, exist_ok=True)
-        PROFILE_PATH.write_text(json.dumps({"baseline": self.detector.baseline, "k": self.detector.p.k}, indent=2))
+        PROFILE_PATH.write_text(json.dumps(self._profile_data(), indent=2))
 
     async def run(self) -> None:
         try:
@@ -159,9 +196,14 @@ class Hub:
         self.head_xy = self.tracker.xy(self.head_axes)
         self.recorder.append(batch)
         blocked = self.gate.mask(batch[list(GYRO_ROWS)])
-        events = self.detector.feed(batch[EXG_ROWS[self.channel - 1]], blocked)
-        for event in events:
-            self.recorder.detected(event)
+        streams: dict[str, list[dict]] = {}
+        for name, det in self.detectors.items():
+            streams[name] = det.feed(batch[EXG_ROWS[self.channels[name] - 1]], blocked)
+            for event in streams[name]:
+                self.recorder.detected({**event, "source": name})
+        # only the input mode's detectors make clicks; "either" merges them (one action = one click)
+        active = sources_for(self.input_mode, list(self.detectors))
+        events = self.merger.merge({name: streams[name] for name in active})
         now = time.monotonic()
         self._rate_window = [(t, n) for t, n in self._rate_window if now - t < 2.0] + [(now, batch.shape[1])]
         span = now - self._rate_window[0][0]
@@ -178,6 +220,11 @@ class Hub:
             "envelope": round(self.detector.envelope, 2),
             "threshold": self.detector.threshold,
             "k": self.detector.p.k,
+            "input": self.input_mode,
+            "detectors": {
+                name: {"channel": self.channels[name], "envelope": round(d.envelope, 2), "threshold": d.threshold, "k": d.p.k}
+                for name, d in self.detectors.items()
+            },
             "double_enabled": self.detector.p.double_enabled,
             "gyro_dps": round(self.gate.dps, 1),
             "gyro_gate": self.gate.threshold,
@@ -185,6 +232,10 @@ class Hub:
             "recording": self.recorder.active,
             "status": self.status,
         }
+
+    def _detector_for(self, msg: dict) -> EyebrowDetector:
+        """The detector a setup command is about: msg["detector"] ("brow" / "jaw"), default brow."""
+        return self.detectors.get(msg.get("detector") or "brow", self.detector)
 
     async def broadcast(self, message: dict) -> None:
         text = json.dumps(message)
@@ -224,19 +275,23 @@ class Hub:
             self.head_axes = HeadAxes(gyro_bias=self.orientation.gyro_bias.copy())
             self.tracker.nod = None
             AXES_PATH.unlink(missing_ok=True)
+        elif cmd == "set_input":
+            if msg.get("input") in INPUT_MODES:
+                self.input_mode = msg["input"]
+                self._save_profile()
         elif cmd == "calibrate_start":
-            self.detector.start_calibration()
+            self._detector_for(msg).start_calibration()
             self.recorder.mark("neutral", "start")
         elif cmd == "calibrate_stop":
             self.recorder.mark("neutral", "end")
-            self.detector.finish_calibration()
+            self._detector_for(msg).finish_calibration()
             self._save_profile()
         elif cmd == "set_k":
-            self.detector.p.k = float(msg["k"])
+            self._detector_for(msg).p.k = float(msg["k"])
             self._save_profile()
         elif cmd == "record_start":
             meta = {"name": msg.get("name", "session"), "note": msg.get("note", ""), "protocol": msg.get("protocol")}
-            self.recorder.start({**meta, "channel": self.channel, "fs": SAMPLING_RATE_HZ}, self.detector.n)
+            self.recorder.start({**meta, "channel": self.channel, "channels": self.channels, "fs": SAMPLING_RATE_HZ}, self.detector.n)
         elif cmd == "mark":
             self.recorder.mark(str(msg["label"]), str(msg["edge"]))
         elif cmd == "record_stop":
@@ -292,10 +347,20 @@ def load_dotenv() -> None:
                 os.environ.setdefault(key.strip(), value.strip())
 
 
+def parse_channels(text: str) -> dict[str, int]:
+    """'2,3' -> {"brow": 2, "jaw": 3}; '2' -> {"brow": 2}."""
+    values = [int(v) for v in text.split(",") if v.strip()]
+    if not 1 <= len(values) <= 2 or not all(1 <= v <= 8 for v in values) or len(set(values)) != len(values):
+        raise argparse.ArgumentTypeError("use one or two different channels from 1-8, e.g. 2,3 (brow, jaw)")
+    return dict(zip(("brow", "jaw"), values))
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Brow Guessr server")
     parser.add_argument("--port", default="/dev/cu.usbserial-A5069RR4", help="board serial port")
     parser.add_argument("--channel", type=int, default=2, help="forehead EXG channel (1-8)")
+    parser.add_argument("--channels", type=parse_channels, metavar="BROW[,JAW]",
+                        help="EMG channels for the click detectors, e.g. 2,3 = brow on 2, jaw on 3 (overrides --channel)")
     parser.add_argument("--replay", type=Path, help="replay a recorded session instead of the board")
     parser.add_argument("--http-port", type=int, default=8000)
     parser.add_argument("--single", action="store_true",
@@ -307,8 +372,14 @@ def main(argv: list[str] | None = None) -> int:
                         help="units of the board's gyro rows, for the gate and head tracking (default: auto-detect)")
     args = parser.parse_args(argv)
     load_dotenv()
-    source = ReplaySource(args.replay) if args.replay else Board(args.port, args.channel)
-    uvicorn.run(create_app(Hub(source, args.channel, double_enabled=not args.single, gyro_gate=args.gyro_gate, gyro_units=args.gyro_units)), host="127.0.0.1", port=args.http_port, log_level="warning")
+    channels = args.channels or {"brow": args.channel}
+    if args.replay:
+        source = ReplaySource(args.replay)
+    else:
+        source = Board(args.port, channels.get("brow", args.channel), extra_channels=tuple(channels.values()))
+    hub = Hub(source, args.channel, double_enabled=not args.single, gyro_gate=args.gyro_gate,
+              gyro_units=args.gyro_units, channels=channels)
+    uvicorn.run(create_app(hub), host="127.0.0.1", port=args.http_port, log_level="warning")
     return 0
 
 

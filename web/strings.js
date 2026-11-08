@@ -115,6 +115,7 @@ const S = {
   "pause.title": "Paused",
   "pause.body": { plain: "Look straight ahead, then {act} to continue.", playful: "Look straight ahead,<br>then <b>raise your eyebrows</b> to play." },
   "pause.helper": "Helper: press Space or click here",
+  "pause.helper.switch": "Helper: press Esc or click here",
   "pauseTile.title": "Pause",
   "pauseTile.hold": "or hold here",
   "badge.seen": { plain: "{Act} detected ✓", playful: "Raise seen ✓" },
@@ -148,6 +149,7 @@ const S = {
   "setup.range.cancel": "Cancel",
   "setup.brow.relax": "Relax… {s}",
   "setup.brow.button": "Calibrate (relax 8 s)",
+  "setup.jaw.button": "Calibrate jaw (relax 8 s)",
   "setup.rec.ready": "Get ready…",
   "setup.rec.relaxLook": "Relax and look ahead",
   "setup.rec.relax": "Relax",
@@ -163,9 +165,10 @@ const S = {
   "setup.log.ignored": " — ignored, head was moving",
 };
 
-/** Verb forms for the current input. */
+/** Verb forms for the current input: "raise" only when the eyebrows are the sole input, otherwise "click". */
 export function words() {
-  return { Act: "Raise", act: "raise", ActPhrase: "Raise your eyebrows" };
+  if ((settings.input ?? "brow") === "brow") return { Act: "Raise", act: "raise", ActPhrase: "Raise your eyebrows" };
+  return { Act: "Click", act: "click", ActPhrase: "Click" };
 }
 
 export function tone() {

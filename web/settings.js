@@ -11,6 +11,9 @@ export const DEFAULTS = {
   oneEuroMinCutoff: 1.0, // Hz: lower = steadier when still
   oneEuroBeta: 0.02, // higher = less lag when moving fast
   magnet: 0.6, // pull toward a button within 80 px: 0 = off, 1 = snap to its centre
+  // what makes a click: "brow" (eyebrow EMG) | "jaw" (jaw EMG) | "either" | "keyboard-switch" (Space/Enter,
+  // e.g. from a physical switch). The server's --channels decides which EMG channels exist.
+  input: "brow",
   // copy
   tone: "plain", // "plain" (default, for everyone) | "playful" (the original kid-style copy)
   // read-aloud (speech.js)

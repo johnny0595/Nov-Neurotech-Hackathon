@@ -4,6 +4,7 @@ import { t } from "./strings.js";
 
 const $ = (id) => document.getElementById(id);
 let maxEnvSeen = 1;
+let maxJawSeen = 1;
 
 let axesLearned = null;
 const api = connect({
@@ -28,12 +29,22 @@ const api = connect({
     $("dot").style.translate = `${clamp(x * 2.5)}% ${clamp(y * 2.5) * 3}%`;
     $("angles").textContent = `roll ${fmt(s.roll)}  pitch ${fmt(s.pitch)}  yaw ${fmt(s.yaw)}  →  x ${fmt(x)}  y ${fmt(y)}`;
 
-    if (s.envelope !== undefined) {
-      maxEnvSeen = Math.max(maxEnvSeen * 0.999, s.envelope);
-      const full = s.threshold ? s.threshold * 2 : maxEnvSeen * 1.2;
-      $("env").style.width = `${Math.min(100, (s.envelope / full) * 100)}%`;
-      $("thr").hidden = !s.threshold;
-      if (document.activeElement !== $("k") && s.k) { $("k").value = s.k; $("kval").textContent = s.k; }
+    const jaw = s.detectors?.jaw;
+    $("jawBlock").hidden = !jaw;
+    if (jaw) {
+      maxJawSeen = Math.max(maxJawSeen * 0.999, jaw.envelope);
+      const full = jaw.threshold ? jaw.threshold * 2 : maxJawSeen * 1.2;
+      $("env-jaw").style.width = `${Math.min(100, (jaw.envelope / full) * 100)}%`;
+      $("thr-jaw").hidden = !jaw.threshold;
+      if (document.activeElement !== $("k-jaw") && jaw.k) { $("k-jaw").value = jaw.k; $("kval-jaw").textContent = jaw.k; }
+    }
+    const brow = s.detectors?.brow ?? s; // older servers: the top-level fields are the brow detector
+    if (brow.envelope !== undefined && s.envelope !== undefined) {
+      maxEnvSeen = Math.max(maxEnvSeen * 0.999, brow.envelope);
+      const full = brow.threshold ? brow.threshold * 2 : maxEnvSeen * 1.2;
+      $("env").style.width = `${Math.min(100, (brow.envelope / full) * 100)}%`;
+      $("thr").hidden = !brow.threshold;
+      if (document.activeElement !== $("k") && brow.k) { $("k").value = brow.k; $("kval").textContent = brow.k; }
     }
   },
   onEvent(e) {
@@ -41,7 +52,8 @@ const api = connect({
     const li = document.createElement("li");
     li.className = e.type;
     const note = e.type === "gated_raise" ? t("setup.log.ignored") : "";
-    li.textContent = `${new Date().toLocaleTimeString()} — ${e.type}${e.duration_s ? ` (${e.duration_s}s)` : ""}${note}`;
+    const from = e.source ? ` [${e.source}]` : "";
+    li.textContent = `${new Date().toLocaleTimeString()} — ${e.type}${from}${e.duration_s ? ` (${e.duration_s}s)` : ""}${note}`;
     $("log").prepend(li);
   },
   onMessage(m) {
@@ -72,7 +84,7 @@ globalThis.speechSynthesis?.addEventListener?.("voiceschanged", fillVoices);
 $("speechTest").onclick = () => speak(t("setup.speech.test"), { force: true });
 
 // ---------- head settings ----------
-for (const id of ["xAxis", "yAxis", "invertX", "invertY", "speed", "deadzone", "lookSpeed", "cursorMode", "oneEuroMinCutoff", "oneEuroBeta", "magnet", "tone", "speechOn", "speechVoice", "speechRate", "speechVolume", "timing"]) {
+for (const id of ["xAxis", "yAxis", "invertX", "invertY", "speed", "deadzone", "lookSpeed", "cursorMode", "oneEuroMinCutoff", "oneEuroBeta", "magnet", "tone", "speechOn", "speechVoice", "speechRate", "speechVolume", "timing", "input"]) {
   const el = $(id);
   const key = el.type === "checkbox" ? "checked" : "value";
   const out = $(`${id}-val`);
@@ -184,16 +196,19 @@ $("range-reset").onclick = () => {
 showRange();
 
 // ---------- eyebrow calibration ----------
-$("k").oninput = () => { $("kval").textContent = $("k").value; api.send({ cmd: "set_k", k: Number($("k").value) }); };
-$("calibrate").onclick = async () => {
-  const btn = $("calibrate");
+// each EMG signal (brow, and jaw with --channels 2,3) has its own calibration and sensitivity
+$("k").oninput = () => { $("kval").textContent = $("k").value; api.send({ cmd: "set_k", detector: "brow", k: Number($("k").value) }); };
+$("k-jaw").oninput = () => { $("kval-jaw").textContent = $("k-jaw").value; api.send({ cmd: "set_k", detector: "jaw", k: Number($("k-jaw").value) }); };
+async function calibrateDetector(detector, btn, label) {
   btn.disabled = true;
-  api.send({ cmd: "calibrate_start" });
+  api.send({ cmd: "calibrate_start", detector });
   for (let s = 8; s > 0; s--) { btn.textContent = t("setup.brow.relax", { s }); await sleep(1000); }
-  api.send({ cmd: "calibrate_stop" });
-  btn.textContent = t("setup.brow.button");
+  api.send({ cmd: "calibrate_stop", detector });
+  btn.textContent = label;
   btn.disabled = false;
-};
+}
+$("calibrate").onclick = () => calibrateDetector("brow", $("calibrate"), t("setup.brow.button"));
+$("calibrate-jaw").onclick = () => calibrateDetector("jaw", $("calibrate-jaw"), t("setup.jaw.button"));
 
 // ---------- guided recording ----------
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));

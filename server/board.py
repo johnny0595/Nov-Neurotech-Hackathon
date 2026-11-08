@@ -30,9 +30,11 @@ def channel_is_live(data: np.ndarray, channel: int) -> bool:
 
 
 class Board:
-    def __init__(self, port: str | None, channel: int = 2, log=print) -> None:
+    def __init__(self, port: str | None, channel: int = 2, log=print, extra_channels: tuple[int, ...] = ()) -> None:
         self.port_pref = port
         self.channel = channel
+        # more EXG channels to switch on (e.g. a jaw electrode next to the forehead one), one at a time
+        self.channels = [channel, *[c for c in extra_channels if c != channel]]
         self.log = log
         self.board = None
         self.info: dict = {}
@@ -54,7 +56,8 @@ class Board:
             self.board.prepare_session()
             self.board.start_stream(450000)
             time.sleep(SETTLE_SECONDS)
-            self._enable_channel()
+            for ch in self.channels:
+                self._enable_channel(ch)
         except Exception:
             self.close()
             raise
@@ -63,30 +66,31 @@ class Board:
             "brainflow_version": BoardShim.get_version(),
             "nominal_rate_hz": BoardShim.get_sampling_rate(board_id),
             "channel": self.channel,
+            "channels": self.channels,
             "gain": GAIN,
         }
-        self.log(f"Streaming on {port.port}, channel {self.channel} at gain {GAIN}")
+        self.log(f"Streaming on {port.port}, channel(s) {self.channels} at gain {GAIN}")
 
-    def _send_and_check(self, command: str) -> bool:
+    def _send_and_check(self, command: str, channel: int) -> bool:
         self.board.config_board(command)
         time.sleep(COMMAND_GAP_SECONDS)
-        return channel_is_live(self.board.get_board_data(), self.channel)
+        return channel_is_live(self.board.get_board_data(), channel)
 
-    def _enable_channel(self) -> None:
-        on = f"chon_{self.channel}_{GAIN}"
+    def _enable_channel(self, channel: int) -> None:
+        on = f"chon_{channel}_{GAIN}"
         for attempt in range(1, ENABLE_ATTEMPTS + 1):
-            if self._send_and_check(on):
-                self.log(f"channel {self.channel} live after {attempt} attempt(s)")
+            if self._send_and_check(on, channel):
+                self.log(f"channel {channel} live after {attempt} attempt(s)")
                 break
-            self.log(f"channel {self.channel} still flat after '{on}', retrying")
+            self.log(f"channel {channel} still flat after '{on}', retrying")
         else:
-            raise RuntimeError(f"channel {self.channel} stayed flat after {ENABLE_ATTEMPTS} tries; unplug the board for 5 s and restart")
+            raise RuntimeError(f"channel {channel} stayed flat after {ENABLE_ATTEMPTS} tries; unplug the board for 5 s and restart")
         # Route the channel into the bias drive (less mains noise). If that knocks the channel
         # out, switch it back on; the bias is a nice-to-have, the channel is not.
-        if not self._send_and_check(f"rldadd_{self.channel}"):
-            self.log("channel went flat after rldadd; switching it back on without bias routing")
-            if not self._send_and_check(on):
-                raise RuntimeError(f"channel {self.channel} went flat after rldadd and didn't come back")
+        if not self._send_and_check(f"rldadd_{channel}", channel):
+            self.log(f"channel {channel} went flat after rldadd; switching it back on without bias routing")
+            if not self._send_and_check(on, channel):
+                raise RuntimeError(f"channel {channel} went flat after rldadd and didn't come back")
 
     def read(self) -> np.ndarray:
         """Drain everything new since the last read, shape (22, n)."""

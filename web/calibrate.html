@@ -23,7 +23,14 @@
       <h2>Preferences</h2>
       <div class="row">
         <label>Tone of the game's text <select id="tone"><option value="plain">Plain (for everyone)</option><option value="playful">Playful (for children)</option></select></label>
+        <label>Click with <select id="input">
+          <option value="brow">Eyebrow raise (forehead EMG)</option>
+          <option value="jaw">Jaw clench (jaw EMG)</option>
+          <option value="either">Either eyebrow or jaw</option>
+          <option value="keyboard-switch">Keyboard / switch (Space or Enter)</option>
+        </select></label>
       </div>
+      <p class="muted small-note">Jaw needs a second electrode: start the server with <code>--channels 2,3</code> (brow on 2, jaw on 3). Each signal is calibrated separately below.</p>
       <fieldset class="row">
         <legend>Read aloud</legend>
         <label><input type="checkbox" id="speechOn"> Read labels, hints and results aloud</label>
@@ -111,6 +118,15 @@
       <div class="row">
         <button id="calibrate">Calibrate (relax 8 s)</button>
         <label>Sensitivity <input type="range" id="k" min="2" max="20" step="0.5"> <span id="kval"></span></label>
+      </div>
+      <div id="jawBlock" hidden>
+        <h3>Jaw</h3>
+        <p class="muted">Press <b>Calibrate jaw</b> and keep your jaw relaxed for 8 s. Then clench briefly: the bar should cross the line.</p>
+        <div class="meter"><div id="env-jaw"></div><div id="thr-jaw" class="thr"></div></div>
+        <div class="row">
+          <button id="calibrate-jaw">Calibrate jaw (relax 8 s)</button>
+          <label>Jaw sensitivity <input type="range" id="k-jaw" min="2" max="20" step="0.5"> <span id="kval-jaw"></span></label>
+        </div>
       </div>
       <ol id="log" class="log"></ol>
     </section>
