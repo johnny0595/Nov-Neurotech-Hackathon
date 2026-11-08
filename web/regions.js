@@ -58,6 +58,16 @@ export const REGIONS = {
   },
 };
 
+// Street View lookup: Google's own outdoor captures only. OUTDOOR alone still lets user-uploaded photo
+// spheres through (e.g. a drone shot high above Raleigh), which isn't a street a kid can recognise.
+export function panoRequest(loc, radius) {
+  const { StreetViewSource, StreetViewPreference } = google.maps;
+  const request = { location: { lat: loc.lat, lng: loc.lng }, radius, preference: StreetViewPreference.NEAREST };
+  if (StreetViewSource.GOOGLE) request.sources = [StreetViewSource.GOOGLE, StreetViewSource.OUTDOOR]; // intersection
+  else request.source = StreetViewSource.OUTDOOR; // older Maps JS versions
+  return request;
+}
+
 export function currentRegion(search = globalThis.location?.search ?? "") {
   const id = new URLSearchParams(search).get("region");
   return REGIONS[id] ?? REGIONS.raleigh;

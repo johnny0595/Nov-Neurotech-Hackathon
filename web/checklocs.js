@@ -1,5 +1,7 @@
 // Dev check (?checklocs=1): ask Street View for the nearest outdoor panorama around every location and
-// print a console table. Uses the Maps JavaScript API only (our key can't call the Static metadata API).
+// print a console table (same Google-only, outdoor lookup as the game). Uses the Maps JavaScript API only (our key can't call the Static metadata API).
+import { panoRequest } from "./regions.js";
+
 const R = 6371000;
 const rad = (d) => (d * Math.PI) / 180;
 
@@ -15,14 +17,11 @@ export async function checkLocations(locations, radius = 150) {
   const rows = [];
   for (const loc of locations) {
     try {
-      const { data } = await sv.getPanorama({
-        location: { lat: loc.lat, lng: loc.lng }, radius,
-        source: google.maps.StreetViewSource.OUTDOOR,
-        preference: google.maps.StreetViewPreference.NEAREST,
-      });
+      const { data } = await sv.getPanorama(panoRequest(loc, radius));
       const p = data.location.latLng;
       const meters = Math.round(haversineMeters(loc, { lat: p.lat(), lng: p.lng() }));
-      rows.push({ name: loc.name, found: "yes", distance_m: meters, ok: meters <= radius ? "ok" : "TOO FAR", pano: data.location.pano });
+      const by = data.copyright ?? "";
+      rows.push({ name: loc.name, found: "yes", distance_m: meters, ok: meters <= radius ? "ok" : "TOO FAR", by, pano: data.location.pano });
     } catch {
       rows.push({ name: loc.name, found: "no", distance_m: null, ok: "NO COVERAGE", pano: "" });
     }

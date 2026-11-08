@@ -1,6 +1,6 @@
 import { connect, createCursor, deadzone, headXY, settings } from "./input.js";
 import { createMeter } from "./meter.js";
-import { currentRegion } from "./regions.js";
+import { currentRegion, panoRequest } from "./regions.js";
 
 const ROUNDS = 5;
 const HINT_AFTER_S = 30;
@@ -208,10 +208,7 @@ async function pickLocation() {
     game.used.add(loc.name);
     if (!svService) return { ...loc, panoId: null };
     try {
-      const { data } = await svService.getPanorama({
-        location: { lat: loc.lat, lng: loc.lng }, radius: region.snapRadius, source: google.maps.StreetViewSource.OUTDOOR,
-        preference: google.maps.StreetViewPreference.NEAREST,
-      });
+      const { data } = await svService.getPanorama(panoRequest(loc, region.snapRadius));
       const p = data.location.latLng;
       return { ...loc, lat: p.lat(), lng: p.lng(), panoId: data.location.pano };
     } catch {

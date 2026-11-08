@@ -41,7 +41,7 @@ You can work without the headset:
 |---|---|
 | `/` | Raleigh mode (default): 20 kid-friendly Raleigh spots, a map locked to Wake County, scoring in miles/feet, Street View snapped within 150 m |
 | `/?region=world` | The original worldwide list, km scoring, 1 km snap |
-| `/?checklocs=1` | Dev check. Asks Street View (Maps JavaScript API) for the nearest outdoor panorama within 150 m of every location in the current region, then prints a console table: name, found, distance to the snapped pano. Fix or drop any row that isn't `ok`. Needs the Maps key. |
+| `/?checklocs=1` | Dev check. Asks Street View (Maps JavaScript API) for the nearest Google-captured outdoor panorama within 150 m (user-uploaded photo spheres are skipped) of every location in the current region, then prints a console table: name, found, distance to the snapped pano. Fix or drop any row that isn't `ok`. Needs the Maps key. |
 | `/?mock=1` | Mouse + keys instead of the headset (combine with any of the above) |
 
 ### Raleigh mode
