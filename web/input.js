@@ -181,8 +181,10 @@ export function createCursor({ api, onClick = () => {}, onDrag = () => {}, onPau
     if (y < innerHeight * NO_CLICK_TOP) return; // nothing up there is clickable
     const target = document.elementFromPoint(x, y);
     const button = target?.closest("button");
-    if (button && !button.disabled) button.click();
-    else onClick(x, y, target);
+    if (button && !button.disabled) {
+      c.headClicking = true; // lets the page tell a head raise from a helper's mouse click
+      try { button.click(); } finally { c.headClicking = false; }
+    } else onClick(x, y, target);
   }
 
   function frame(now) {
@@ -257,6 +259,7 @@ export function createCursor({ api, onClick = () => {}, onDrag = () => {}, onPau
     get paused() { return c.paused; },
     get dragging() { return c.dragging; },
     get position() { return { x: c.sx, y: c.sy }; },
+    get headClicking() { return Boolean(c.headClicking); },
     lockedPosition,
     stopDrag() { c.dragging = false; },
     setDragEnabled(v) { dragEnabled = v; if (!v) c.dragging = false; },

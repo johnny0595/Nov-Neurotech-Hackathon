@@ -4,6 +4,11 @@ import { currentRegion, panoRequest } from "./regions.js";
 
 const ROUNDS = 5;
 const HINT_AFTER_S = 30;
+// Guessing can't be undone, so a head guess takes two raises: the first drops (or arms) the pin, the
+// second, within CONFIRM_PX of it, locks it in. Wandering further away for CANCEL_MS cancels; the delay
+// ignores the upward nudge a raise itself gives the head.
+const CONFIRM_PX = 60;
+const CANCEL_MS = 700;
 const $ = (id) => document.getElementById(id);
 const region = currentRegion();
 const params = new URLSearchParams(location.search);
@@ -19,6 +24,7 @@ let pano = null;
 let svService = null;
 let guessMarker = null;
 let resultLayer = null;
+let armed = null; // null | { kind: "pin" | "button", farSince: ms | null, ring? }
 let head = {};
 
 // ---------- eyebrow meters (big on the start screen, small in a corner during the game) ----------
@@ -64,14 +70,19 @@ const cursor = createCursor({
   api,
   onClick(x, y, target) {
     if (game.mode !== "guess" || !target?.closest("#map")) return;
+    // (x, y) is the click-lock position: where the cursor was just before the raise began
+    if (armed?.kind === "pin" && pinDistance(x, y) <= CONFIRM_PX) return submitGuess();
     const rect = $("map").getBoundingClientRect();
     placePin(map.containerPointToLatLng(L.point(x - rect.left, y - rect.top)));
+    arm("pin");
   },
   onDrag(dx, dy) {
     if (game.mode === "guess") map.panBy([-dx, -dy], { animate: false });
   },
   labelAt(x, y, target) {
-    return game.mode === "guess" && target.closest("#map") ? "Drop pin" : "";
+    if (game.mode !== "guess" || !target.closest("#map")) return "";
+    if (armed?.kind === "pin") return pinDistance(x, y) <= CONFIRM_PX ? "Lock it in!" : "Move pin here";
+    return "Drop pin";
   },
   onPauseChange(paused) {
     if (!paused && stats.shownAt !== null) stats.shownAt = performance.now(); // time spent paused doesn't count
@@ -93,10 +104,56 @@ L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
 map.on("click", (e) => game.mode === "guess" && placePin(e.latlng)); // plain mouse works too, for helpers
 
 function placePin(latlng) {
+  disarm();
   game.guess = latlng;
   guessMarker ??= L.marker(latlng).addTo(map);
   guessMarker.setLatLng(latlng);
   $("submit-guess").disabled = false;
+}
+
+function pinDistance(x, y) {
+  if (!game.guess) return Infinity;
+  const rect = $("map").getBoundingClientRect();
+  const p = map.latLngToContainerPoint(game.guess);
+  return Math.hypot(x - (rect.left + p.x), y - (rect.top + p.y));
+}
+
+function arm(kind) {
+  disarm();
+  armed = { kind, farSince: null };
+  if (kind === "pin") {
+    armed.ring = L.circleMarker(game.guess, { radius: CONFIRM_PX, className: "confirm-ring", interactive: false }).addTo(map);
+    guessMarker.bindTooltip("Lock it in? Raise again", { permanent: true, direction: "top", offset: [-15, -42], className: "confirm-tip" }).openTooltip();
+  } else {
+    $("submit-guess").classList.add("confirming");
+    $("submit-guess").textContent = "🔒 Lock it in?";
+    $("submit-guess").dataset.raiseLabel = "Lock it in!";
+  }
+}
+
+function disarm() {
+  if (!armed) return;
+  armed.ring?.remove();
+  guessMarker?.unbindTooltip();
+  $("submit-guess").classList.remove("confirming");
+  $("submit-guess").textContent = "📍 Guess!";
+  $("submit-guess").dataset.raiseLabel = "Guess!";
+  armed = null;
+}
+
+// Cancel a pending lock-in once the cursor has stayed away from the pin (or the button) for a moment.
+function checkArmed(now) {
+  if (!armed) return;
+  if (game.mode !== "guess") return disarm();
+  const { x, y } = cursor.position;
+  let away;
+  if (armed.kind === "pin") away = pinDistance(x, y) > CONFIRM_PX;
+  else {
+    const r = $("submit-guess").getBoundingClientRect();
+    away = x < r.left - 20 || x > r.right + 20 || y < r.top - 20 || y > r.bottom + 20;
+  }
+  armed.farSince = away ? (armed.farSince ?? now) : null;
+  if (armed.farSince !== null && now - armed.farSince > CANCEL_MS) disarm();
 }
 
 // ---------- screens: start → (look ⇄ guess → result) × ROUNDS → final ----------
@@ -104,11 +161,12 @@ function setDoubleEnabled(enabled) {
   game.doubleEnabled = enabled;
   cursor.setDragEnabled(enabled);
   $("guess-hint").innerHTML = enabled
-    ? "Raise once = drop pin / press · Raise twice = grab &amp; move the map"
-    : "Raise eyebrows = drop pin / press a button";
+    ? "Raise = drop pin · raise again on it = lock it in · raise twice quickly = grab the map"
+    : "Raise = drop pin · raise again on the pin = lock it in";
 }
 
 function show(mode) {
+  if (mode !== "guess") disarm();
   if (mode !== game.mode) {
     cursor.stopDrag(); // never carry a map grab into another screen
     stats.shownAt = performance.now();
@@ -147,8 +205,16 @@ $("look-again").onclick = () => show("look");
 $("to-map").onclick = showGuess; // mouse fallback for "raise to go to the map"
 $("zoom-in").onclick = () => map.zoomIn();
 $("zoom-out").onclick = () => map.zoomOut();
+// A helper's mouse click guesses straight away; a head raise needs a second raise to lock it in.
 $("submit-guess").onclick = () => {
   if (!game.guess) return;
+  if (cursor.headClicking && armed?.kind !== "button") return arm("button");
+  submitGuess();
+};
+
+function submitGuess() {
+  if (!game.guess || game.mode !== "guess") return;
+  disarm();
   const meters = map.distance(game.guess, game.answer);
   const { points, stars } = region.score(meters);
   game.total += points;
@@ -177,7 +243,7 @@ $("submit-guess").onclick = () => {
   map.fitBounds(L.latLngBounds([game.guess, game.answer]), {
     paddingTopLeft: [80, 100], paddingBottomRight: [80, bottom], maxZoom: region.resultMaxZoom,
   });
-};
+}
 $("next").onclick = () => (game.round >= ROUNDS ? showFinal() : newRound());
 $("play-again").onclick = startGame;
 $("helper-toggle").onclick = () => {
@@ -241,6 +307,7 @@ async function newRound() {
 
 async function loadRound() {
   game.round += 1;
+  disarm();
   game.guess = null;
   game.lookSeconds = 0;
   $("loc-hint").hidden = true;
@@ -287,6 +354,7 @@ function steer(now) {
   const elapsed = (now - lastFrame) / 1000;
   const dt = Math.min(0.05, elapsed); // camera step, capped so a hiccup doesn't spin the view
   lastFrame = now;
+  checkArmed(now);
   if (game.mode === "look" && !cursor.paused) {
     game.lookSeconds += Math.min(1, elapsed); // real time, even when frames are slow
     if (game.answer?.hint && game.lookSeconds >= HINT_AFTER_S) $("loc-hint").hidden = false;
