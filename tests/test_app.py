@@ -36,3 +36,11 @@ def test_process_gates_raises_while_the_head_turns():
     events += batch(0.4, loud=True) + batch(1.5)
     assert [e["type"] for e in events if e["type"] != "raise"] == ["gated_raise", "click"]
     assert hub.snapshot()["gyro_gate"] == 60
+
+
+def test_static_files_are_revalidated():
+    from fastapi.testclient import TestClient
+    from server.app import create_app
+
+    with TestClient(create_app(Hub(NullSource(), 2))) as client:
+        assert client.get("/game.js").headers["cache-control"] == "no-cache"

@@ -173,6 +173,14 @@ def create_app(hub: Hub) -> FastAPI:
 
     app = FastAPI(lifespan=lifespan)
 
+    @app.middleware("http")
+    async def revalidate(request, call_next):
+        # Make browsers re-check web/ files on every load (cheap 304s), so an edited game.js is never
+        # served stale from cache during setup or a demo.
+        response = await call_next(request)
+        response.headers["Cache-Control"] = "no-cache"
+        return response
+
     @app.get("/config")
     def config() -> dict:
         return {"mapsKey": os.environ.get("GOOGLE_MAPS_API_KEY", ""), "status": hub.status}
