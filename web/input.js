@@ -31,7 +31,7 @@ export function connect({ onState = () => {}, onEvent = () => {}, onMessage = ()
   const api = { connected: false, send() {} };
   if (mock) {
     const double_enabled = new URLSearchParams(location.search).has("double");
-    const fake = { roll: 0, pitch: 0, yaw: 0, status: `mock (mouse + C${double_enabled ? "/D" : ""} keys)`, envelope: 0, threshold: null, rate_hz: 0, double_enabled };
+    const fake = { roll: 0, pitch: 0, yaw: 0, status: `mock (mouse + C${double_enabled ? "/D" : ""} keys)`, envelope: 3, threshold: 10, rate_hz: 0, double_enabled };
     addEventListener("mousemove", (e) => {
       fake.roll = ((e.clientX - innerWidth / 2) / (innerWidth / 2)) * 20;
       fake.pitch = ((e.clientY - innerHeight / 2) / (innerHeight / 2)) * 20;
@@ -39,10 +39,13 @@ export function connect({ onState = () => {}, onEvent = () => {}, onMessage = ()
     });
     addEventListener("keydown", (e) => {
       if (e.target.closest?.("input, select, textarea")) return;
-      if (e.key === "c") onEvent({ type: "click" });
-      if (e.key === "d" && double_enabled) onEvent({ type: "drag_toggle" });
+      if (e.key === "c") { fake.envelope = 24; onEvent({ type: "raise" }); onEvent({ type: "click" }); }
+      if (e.key === "d" && double_enabled) { fake.envelope = 24; onEvent({ type: "raise" }); onEvent({ type: "raise" }); onEvent({ type: "drag_toggle" }); }
     });
-    setInterval(() => onState({ ...fake }), 1000 / 60);
+    setInterval(() => {
+      fake.envelope = 3 + (fake.envelope - 3) * 0.9 + Math.random() * 0.6; // fake EMG: decays back to rest
+      onState({ ...fake, envelope: Math.round(fake.envelope * 100) / 100 });
+    }, 1000 / 60);
     api.connected = true;
     return api;
   }
@@ -184,6 +187,7 @@ export function createCursor({ api, onClick = () => {}, onDrag = () => {}, onPau
     setHead(state) { c.head = state; },
     setVisible(v) { c.visible = v; },
     pause() { setPaused(true); },
+    resume() { setPaused(false); },
     get paused() { return c.paused; },
     get dragging() { return c.dragging; },
     stopDrag() { c.dragging = false; },

@@ -10,19 +10,29 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <link rel="stylesheet" href="style.css">
 </head>
-<body class="game is-paused">
+<body class="game is-paused at-start">
   <header class="topbar">
     <span id="round">Round 1 / 5</span>
     <span id="score">0 points</span>
     <span id="status" class="status"></span>
   </header>
 
-  <section id="look" class="screen">
+  <section id="start" class="start-screen">
+    <div class="start-inner">
+      <h1 class="title">Brow Guessr</h1>
+      <p class="tagline">Raise your eyebrows to play!</p>
+      <div id="start-meter"></div>
+      <button id="play" class="big primary">▶ Play</button>
+    </div>
+  </section>
+
+  <section id="look" class="screen" hidden>
     <div id="pano"></div>
     <div id="pano-missing" class="pano-missing" hidden>
       <h2>Street View needs a Google Maps key</h2>
       <p>Put <code>GOOGLE_MAPS_API_KEY=…</code> in <code>.env</code> and restart the server.<br>The rest of the game still works.</p>
     </div>
+    <div id="loc-hint" class="loc-hint" hidden>💡 Hint: <span id="loc-hint-text"></span></div>
     <div class="hint">Turn your head to look around · <b>Raise eyebrows</b> to guess on the map 🗺️</div>
   </section>
 
@@ -43,10 +53,32 @@
     <div class="card">
       <div id="stars" class="stars"></div>
       <h1 id="result-title"></h1>
-      <p id="result-detail"></p>
+      <p class="result-place">It was <b id="result-place"></b></p>
+      <div class="result-numbers">
+        <div><span id="result-distance"></span><small>away</small></div>
+        <div><span id="result-points"></span><small>points</small></div>
+      </div>
+      <p id="result-fact" class="fact"></p>
       <button id="next" class="big primary">Next ▶</button>
     </div>
   </section>
+
+  <section id="final" class="final-screen" hidden>
+    <div class="card">
+      <div class="stars">🏆</div>
+      <h1 id="final-score"></h1>
+      <p id="final-detail"></p>
+      <div class="final-buttons">
+        <button id="play-again" class="big primary">Play again ▶</button>
+        <button id="helper-toggle" class="big" aria-expanded="false" aria-controls="helper-panel">📋 Helper summary</button>
+      </div>
+      <div id="helper-panel" class="helper-panel" hidden>
+        <dl id="helper-stats"></dl>
+      </div>
+    </div>
+  </section>
+
+  <div id="corner-meter" hidden></div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script type="module" src="game.js"></script>

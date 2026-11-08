@@ -103,8 +103,74 @@ button.big.head-hover:not(:disabled), button.big:hover:not(:disabled) {
 .card p { font-size: 26px; margin: 4px 0 20px; }
 .stars { font-size: 52px; letter-spacing: 4px; }
 
+/* ---------- start screen ---------- */
+.start-screen { position: fixed; inset: 0; z-index: 700; display: grid; place-items: center; padding: 24px 16px; background: var(--cream); }
+.start-inner { display: grid; justify-items: center; gap: 20px; text-align: center; width: min(820px, 100%); }
+.title { font-size: clamp(64px, 12vw, 132px); line-height: .9; margin: 0; font-weight: 800; color: var(--ink); text-shadow: 0 8px 0 var(--sun); }
+.tagline { font-size: clamp(30px, 5vw, 52px); font-weight: 800; margin: 0; }
+.at-start .pause-overlay, .at-start .topbar span:not(.status) { display: none; }
+.at-start .topbar { z-index: 800; } /* keep server status (e.g. board error) visible to the helper */
+
+/* ---------- eyebrow meter ---------- */
+.brow-meter { width: 100%; }
+.brow-meter-track {
+  position: relative; height: 64px; overflow: hidden;
+  background: var(--card); border: 6px solid var(--ink); border-radius: 999px; box-shadow: 0 6px 0 var(--ink);
+}
+.brow-meter-fill { position: absolute; inset: 0 auto 0 0; width: 0; background: var(--teal); transition: width .06s linear; }
+.brow-meter.over .brow-meter-fill { background: var(--sun); }
+.brow-meter-mark { position: absolute; top: -6px; bottom: -6px; left: 50%; width: 8px; translate: -50% 0; background: var(--coral); }
+.brow-meter-label { margin-top: 10px; font-size: 22px; color: var(--muted); font-weight: 700; }
+.brow-meter.flash .brow-meter-track { animation: meter-flash .5s ease-out; }
+@keyframes meter-flash {
+  0% { background: var(--coral); scale: 1; }
+  30% { background: var(--coral); scale: 1.04; }
+  100% { background: var(--card); scale: 1; }
+}
+#corner-meter { position: fixed; left: 16px; bottom: 16px; z-index: 450; width: 200px; pointer-events: none; }
+.brow-meter.compact .brow-meter-track { height: 26px; border-width: 4px; box-shadow: 0 3px 0 var(--ink); }
+.brow-meter.compact .brow-meter-mark { width: 5px; top: -4px; bottom: -4px; }
+.brow-meter.compact .brow-meter-label { margin-top: 2px; font-size: 15px; background: var(--card); border-radius: 8px; padding: 0 8px; justify-self: start; display: inline-block; }
+
+/* ---------- look-screen hint ---------- */
+.loc-hint {
+  position: absolute; left: 50%; top: 84px; translate: -50% 0; z-index: 400; max-width: calc(100% - 380px);
+  background: var(--sun); color: #1b1f3b; border: 5px solid var(--ink); border-radius: 24px; box-shadow: 0 6px 0 var(--ink);
+  padding: 10px 28px; font-size: 32px; font-weight: 800; text-align: center; animation: drop-in .5s ease-out;
+}
+@keyframes drop-in { from { translate: -50% -30px; opacity: 0; } }
+
+/* ---------- result + final ---------- */
+.result-place { font-size: 28px; margin: 0 0 8px; }
+.result-numbers { display: flex; justify-content: center; gap: 20px; margin: 0 0 12px; }
+.result-numbers > div { display: grid; min-width: 180px; padding: 6px 18px; border: 4px solid var(--ink); border-radius: 20px; background: var(--cream); }
+.result-numbers span { font-size: 40px; font-weight: 800; line-height: 1.1; }
+.result-numbers small { font-size: 18px; color: var(--muted); }
+.card p.fact { font-size: 22px; background: rgba(46,196,182,.18); border-radius: 16px; padding: 8px 16px; margin: 0 0 18px; }
+.card p.fact::before { content: "🤓 "; }
+.final-screen { position: fixed; inset: 0; z-index: 700; display: flex; padding: 16px; background: var(--cream); overflow: auto; }
+.final-screen .card { margin: auto; } /* centred, but scrolls instead of clipping on short screens */
+.final-screen .card h1 { font-size: 72px; }
+.final-buttons { display: flex; flex-wrap: wrap; justify-content: center; gap: 28px; }
+.helper-panel { margin-top: 24px; text-align: left; border-top: 4px dashed var(--muted); padding-top: 12px; }
+.helper-panel dl { display: grid; grid-template-columns: 1fr auto; gap: 6px 24px; margin: 0; font-size: 22px; }
+.helper-panel dt { color: var(--muted); }
+.helper-panel dd { margin: 0; font-weight: 800; text-align: right; }
+
 @media (max-width: 700px) {
+  .result-numbers > div { min-width: 120px; }
+  .loc-hint { max-width: calc(100% - 32px); top: 160px; font-size: 22px; }
   button.big { min-width: 140px; font-size: 24px; }
   .action-row { gap: 16px; }
   .topbar { font-size: 18px; gap: 8px; }
+}
+@media (max-height: 800px) {
+  /* short laptop screens: keep the result card compact so the guess line stays visible above it */
+  .card { padding: 12px 32px 18px; }
+  .card h1 { font-size: 40px; }
+  .stars { font-size: 34px; }
+  .result-place { font-size: 22px; margin: 0 0 4px; }
+  .result-numbers span { font-size: 28px; }
+  .card p.fact { font-size: 18px; margin-bottom: 10px; padding: 4px 12px; }
+  .final-screen .card h1 { font-size: 56px; }
 }
